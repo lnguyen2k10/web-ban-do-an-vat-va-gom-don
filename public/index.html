@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Lee’s Shop — ăn vặt giao trong ngày, món gom giao cuối tuần tại Nguyễn Gia Trí, Bình Thạnh và Quận 1 – Quận 3.">
+<title>Lee’s Shop · Ăn vặt & món gom</title>
+<link rel="stylesheet" href="/shop.css"><script type="module" src="/shop.js"></script>
+</head>
+<body>
+<header class="top"><div class="wrap nav"><a class="brand" href="/">Lee’s<span> Shop</span><small>ĂN VẶT & MÓN GOM</small></a><nav aria-label="Điều hướng"><a href="#daily">Ăn vặt</a><a href="#weekly">Món gom</a><a href="#groups">Khu vực</a><a href="/tra-don">Tra đơn</a></nav><button id="cart-button" class="button olive">Giỏ hàng <span id="count">0</span></button></div></header>
+<main>
+<section class="hero wrap"><div class="hero-copy"><p class="eyebrow">LEE’S SHOP · TP. HỒ CHÍ MINH</p><h1>Ăn vặt hôm nay.<br><em>Món ngon cuối tuần.</em></h1><p class="intro">Đặt món ăn vặt để nhận trong ngày, hoặc gom lạp xưởng, chả lụa và món muối chua cho bữa cơm cuối tuần.</p><div class="actions"><a href="#daily" class="button olive">Chọn món ăn vặt</a><a href="#weekly" class="button outline">Xem món gom</a></div></div><img class="hero-img" src="/img/hero.jpg" alt="Mâm đồ ăn vặt và món ngon của Lee’s Shop"></section>
+<div class="schedule"><div class="wrap schedules"><div><span class="tag">GIAO TRONG NGÀY</span><strong>Ăn vặt</strong><p>Nhận đơn trước <b>17h mỗi ngày</b>. Thu tiền khi giao.</p></div><div><span class="tag">GIAO CUỐI TUẦN</span><strong>Món gom</strong><p>Nhận đơn từ <b>thứ Hai đến 17h thứ Năm</b>. Giao thứ Bảy hoặc Chủ nhật theo cụm.</p></div></div></div>
+<div class="wrap catalog"><p id="catalog-error" role="alert"></p>
+<section id="daily"><header class="section-title"><div><p class="eyebrow">GIAO TRONG NGÀY</p><h2>Đồ ăn vặt</h2></div><p id="daily-window"></p></header><div id="daily-grid" class="cards"></div></section>
+<section id="weekly"><header class="section-title"><div><p class="eyebrow">GIAO CUỐI TUẦN</p><h2>Đồ khô & món gom</h2></div><p id="weekly-window"></p></header><div id="weekly-grid" class="cards"></div></section>
+<section id="groups"><header class="section-title"><div><p class="eyebrow">GIAO HÀNG THEO CỤM</p><h2>Khu vực & nhóm Zalo</h2></div></header><div class="cards" id="group-grid"></div></section>
+</div>
+</main>
+<footer class="footer"><div class="wrap"><a class="brand" href="/">Lee’s Shop</a><a id="zalo" hidden>Nhắn Zalo</a><a href="/tra-don">Tra cứu đơn</a></div></footer>
+<dialog id="cart"><div class="modal-top"><h2>Giỏ hàng</h2><button class="outline close" type="button" aria-label="Đóng">×</button></div><div id="cart-body"></div></dialog>
+<dialog id="details"><div class="modal-top"><h2 id="detail-title"></h2><button class="outline close" type="button" aria-label="Đóng">×</button></div><div id="detail-body"></div></dialog>
+<div class="toast" id="toast" role="status" hidden></div>
+</body></html>
