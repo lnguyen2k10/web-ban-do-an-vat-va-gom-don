@@ -22,7 +22,17 @@ npm start
 - `http://localhost:3000/tra-don` là trang tra cứu.
 - `npm test` chạy kiểm thử.
 
-Dữ liệu được lưu phía máy chủ bằng SQLite tại `DB_PATH`, mặc định là `data/shop.sqlite`. Đặt tệp này trên ổ đĩa bền vững nếu chạy trên máy chủ và sao lưu bằng công cụ backup của SQLite. Bản đầu dùng một máy chủ Node với ổ đĩa cục bộ. Supabase chưa được kết nối. Để chạy trên Supabase cần thêm lớp lưu trữ Postgres, chuyển dữ liệu và kiểm thử lại. Khi triển khai, dùng HTTPS, đặt `PUBLIC_URL` thành tên miền chính thức và `COOKIE_SECURE=1`.
+## Cơ sở dữ liệu
+
+- Chạy thử cục bộ dùng SQLite tại `DB_PATH`, mặc định `data/shop.sqlite`.
+- Khi đặt `DATABASE_URL` hoặc `SUPABASE_DB_URL`, ứng dụng dùng PostgreSQL. Đặt thêm `DB_ENGINE=postgres` để báo lỗi ngay nếu thiếu URL. Sử dụng **Transaction pooler** của Supabase cho Vercel. Kết nối từ xa xác thực chứng chỉ TLS. Có thể cung cấp CA bằng `DATABASE_SSL_CA` nếu cần.
+- Mã khởi tạo nằm tại [db/postgres.sql](db/postgres.sql). Ứng dụng có thể khởi tạo schema với tài khoản có quyền DDL. Trên Vercel, tạo schema bằng tài khoản quản trị trước và đặt `DB_SKIP_MIGRATIONS=1` để ứng dụng chạy bằng tài khoản chỉ có quyền đọc/ghi trong schema riêng `lees_shop`.
+- PostgreSQL lưu dữ liệu cửa hàng, phiên đăng nhập, khóa chống trùng đơn và hàng đợi thông báo. Dữ liệu SQLite hiện có không tự chuyển sang PostgreSQL.
+- Kiểm thử PostgreSQL bằng `TEST_DATABASE_URL=... npm test` với một database thử nghiệm trống.
+
+## Vercel
+
+Repo có cấu hình phục vụ trang tĩnh và Node API trên Vercel. Khai báo `DATABASE_URL` (Sensitive), `DB_ENGINE=postgres`, `DB_SKIP_MIGRATIONS=1`, `COOKIE_SECURE=1` và `ADMIN_PASSWORD` trong môi trường Production. Khi đã đăng nhập quản trị thành công, có thể bỏ `ADMIN_PASSWORD` khỏi Vercel. Đặt `PUBLIC_URL` thành tên miền chính thức để dùng trong QR và thông báo. Telegram cần cả `TELEGRAM_BOT_TOKEN` và `TELEGRAM_CHAT_ID`.
 
 ## Vận hành
 

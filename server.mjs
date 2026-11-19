@@ -1,23 +1,25 @@
 import {createServer} from 'node:http';
-import {DatabaseSync} from 'node:sqlite';
 import {createHash,randomBytes,scryptSync,timingSafeEqual} from 'node:crypto';
-import {mkdirSync,readFileSync} from 'node:fs';
-import {dirname,extname} from 'node:path';
+import {readFileSync} from 'node:fs';
+import {extname} from 'node:path';
 import ExcelJS from 'exceljs';
 import QRCode from 'qrcode';
+import { waitUntil } from '@vercel/functions';
 import {amount,calendar,check,clean,id,orderUpdate,paid,phone,place,publicOrder,purchasePreview,seed,states,total} from './domain.mjs';
 
-const dbPath=process.env.DB_PATH||'data/shop.sqlite';
-mkdirSync(dirname(dbPath),{recursive:true});
-const storage=new DatabaseSync(dbPath);
-storage.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS shop (id INTEGER PRIMARY KEY, payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user TEXT NOT NULL, expiry INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS checkout (key TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, order_ids TEXT NOT NULL); CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY, order_ids TEXT NOT NULL, next_try INTEGER NOT NULL, attempts INTEGER NOT NULL);');
-storage.prepare('INSERT OR IGNORE INTO shop VALUES (1,?)').run(JSON.stringify(seed()));
-const load=()=>JSON.parse(storage.prepare('SELECT payload FROM shop WHERE id=1').get().payload);
-function write(fn){
-  storage.exec('BEGIN IMMEDIATE');
-  try {const db=load(), out=fn(db); storage.prepare('UPDATE shop SET payload=? WHERE id=1').run(JSON.stringify(db));storage.exec('COMMIT');return out;}
-  catch(e){storage.exec('ROLLBACK');throw e;}
+import {initShop,loadShop,openStorage,writeShop} from './db/storage.mjs';
+
+let storage;
+try {
+  storage=await openStorage();
+  await initShop(storage,seed);
+} catch(error) {
+  console.error('Không khởi tạo được cơ sở dữ liệu:',error.code||error.name);
+  if(storage) await storage.close();
+  throw error;
 }
+const load=()=>loadShop(storage);
+const write=fn=>writeShop(storage,fn);
 const hash=v=>createHash('sha256').update(v).digest('hex');
 function password(v){
   check(typeof v==='string'&&v.length>=12&&v.length<=200,'Mật khẩu cần 12–200 ký tự.');
@@ -30,7 +32,7 @@ function verify(v,key){
   return timingSafeEqual(scryptSync(v,salt,64),Buffer.from(digest,'hex'));
 }
 const bootstrap=process.env.ADMIN_PASSWORD;
-if(bootstrap&&!load().users.length) write(db=>{
+if(bootstrap&&!(await load()).users.length) await write(db=>{
   if(!db.users.length) db.users.push({id:id(),login:(process.env.ADMIN_LOGIN||'admin').toLowerCase(),name:'Chủ shop',role:'admin',password:password(bootstrap)});
 });
 const safeUser=({id,name,role,login})=>({id,name,role,login});
@@ -94,10 +96,10 @@ function importRows(db,rows){
   return {result,errors};
 }
 const cookies=req=>Object.fromEntries((req.headers.cookie||'').split(';').map(v=>v.trim().split('=')));
-function auth(req,db){
+async function auth(req,db){
   const sid=cookies(req).lees_session;
-  const session=sid&&storage.prepare('SELECT user FROM sessions WHERE token=? AND expiry>?').get(hash(sid),Date.now());
-  return session&&db.users.find(u=>u.id===session.user);
+  const session=sid&&await storage.get('SELECT user_id AS account FROM lees_shop.sessions WHERE token=? AND expiry>?',hash(sid),Date.now());
+  return session&&db.users.find(u=>u.id===session.account);
 }
 const secure=process.env.COOKIE_SECURE==='1'?'; Secure':'';
 async function sms(number,action,code){
@@ -123,23 +125,29 @@ async function flushNotifications(){
   if(flushing||!process.env.TELEGRAM_BOT_TOKEN||!process.env.TELEGRAM_CHAT_ID) return;
   flushing=true;
   try {
-    const rows=storage.prepare('SELECT * FROM notifications WHERE next_try<=? ORDER BY next_try LIMIT 10').all(Date.now());
+    const rows=await storage.all('SELECT * FROM lees_shop.notifications WHERE next_try<=? ORDER BY next_try LIMIT 10',Date.now());
     for(const row of rows){
+      const now=Date.now();
+      const claimed=await storage.run('UPDATE lees_shop.notifications SET next_try=? WHERE id=? AND next_try<=?',now+120000,row.id,now);
+      if(!claimed) continue;
       try{
         const ids=new Set(JSON.parse(row.order_ids));
-        await notify(load().orders.filter(o=>ids.has(o.id)));
-        storage.prepare('DELETE FROM notifications WHERE id=?').run(row.id);
+        await notify((await load()).orders.filter(o=>ids.has(o.id)));
+        await storage.run('DELETE FROM lees_shop.notifications WHERE id=?',row.id);
       }catch(e){
         const next=Date.now()+Math.min(3600000,15000*2**Math.min(row.attempts,8));
-        storage.prepare('UPDATE notifications SET attempts=attempts+1,next_try=? WHERE id=?').run(next,row.id);
+        await storage.run('UPDATE lees_shop.notifications SET attempts=attempts+1,next_try=? WHERE id=?',next,row.id);
         console.error('Thông báo Telegram sẽ thử lại:',e.name);
       }
     }
   }finally{flushing=false;}
 }
-setInterval(()=>void flushNotifications().catch(console.error),15000).unref();
-
-const rates=req=>req.socket.remoteAddress||'unknown';
+if(!process.env.VERCEL) setInterval(()=>void flushNotifications().catch(console.error),15000).unref();
+function dispatchNotifications(){
+  const task=flushNotifications().catch(console.error);
+  if(process.env.VERCEL) waitUntil(task);
+}
+const rates=req=>(process.env.VERCEL?req.headers['x-vercel-forwarded-for']?.split(',')[0].trim():null)||req.socket.remoteAddress||'unknown';
 const send=(res,data,status=200,headers={})=>{
   res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store',...headers});
   res.end(JSON.stringify(data));
@@ -168,7 +176,8 @@ function report(db,params){
 const validDate=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;
 async function api(req,res,url){
   const p=url.pathname,m=req.method,q=url.searchParams;
-  const db=load(),user=auth(req,db);
+  const db=await load(),user=await auth(req,db);
+  if(m==='GET'&&p==='/api/catalog'&&process.env.VERCEL) dispatchNotifications();
   if(m==='GET'&&p==='/api/catalog') return send(res,{schedule:calendar(),products:db.products.filter(p=>p.active).map(({cost,supplier,...p})=>p),
     groups:db.groups.filter(g=>g.active).map(({hub,...g})=>g),zalo:process.env.ZALO_URL||''});
   if(m==='POST'&&p==='/api/orders'){
@@ -177,8 +186,8 @@ async function api(req,res,url){
     const key=clean(b.requestKey,60);
     check(/^[0-9a-f-]{36}$/i.test(key),'Tải lại giỏ hàng trước khi gửi đơn.');
     const fingerprint=hash(JSON.stringify(b));
-    const orders=write(db=>{
-      const previous=storage.prepare('SELECT * FROM checkout WHERE key=?').get(key);
+    const orders=await write(async (db,tx)=>{
+      const previous=await tx.get('SELECT * FROM lees_shop.checkout WHERE key=?',key);
       if(previous){
         check(previous.fingerprint===fingerprint,'Giỏ hàng đã thay đổi. Vui lòng gửi lại.',409);
         const ids=new Set(JSON.parse(previous.order_ids));
@@ -186,11 +195,11 @@ async function api(req,res,url){
       }
       const result=place(db,b,'web');
       const ids=JSON.stringify(result.map(o=>o.id));
-      storage.prepare('INSERT INTO checkout VALUES (?,?,?)').run(key,fingerprint,ids);
-      storage.prepare('INSERT INTO notifications VALUES (?,?,?,0)').run(id(),ids,Date.now());
+      await tx.run('INSERT INTO lees_shop.checkout (key,fingerprint,order_ids) VALUES (?,?,?)',key,fingerprint,ids);
+      await tx.run('INSERT INTO lees_shop.notifications (id,order_ids,next_try,attempts) VALUES (?,?,?,0)',id(),ids,Date.now());
       return result;
     });
-    void flushNotifications().catch(console.error);
+    dispatchNotifications();
     return send(res,orders.map(o=>({...publicOrder(o),token:o.token})),201);
   }
   if(m==='GET'&&p==='/api/track'){
@@ -213,7 +222,7 @@ async function api(req,res,url){
     check(/^\d{4,10}$/.test(b.code),'Nhập mã xác minh.');
     const r=await sms(n,'verify',b.code);
     check(r.status==='approved','Mã xác minh không hợp lệ.');
-    return send(res,load().orders.filter(o=>o.phone===n).reverse().map(publicOrder));
+    return send(res,(await load()).orders.filter(o=>o.phone===n).reverse().map(publicOrder));
   }
   if(m==='POST'&&p==='/api/login'){
     limit('login:'+rates(req),15);
@@ -221,13 +230,13 @@ async function api(req,res,url){
     const u=db.users.find(u=>u.login===login);
     check(u&&verify(b.password,u.password),'Tên đăng nhập hoặc mật khẩu không đúng.',401);
     const s=randomBytes(32).toString('base64url'), expiry=Date.now()+43200000;
-    storage.prepare('DELETE FROM sessions WHERE expiry<=?').run(Date.now());
-    storage.prepare('INSERT INTO sessions VALUES (?,?,?)').run(hash(s),u.id,expiry);
+    await storage.run('DELETE FROM lees_shop.sessions WHERE expiry<=?',Date.now());
+    await storage.run('INSERT INTO lees_shop.sessions (token,user_id,expiry) VALUES (?,?,?)',hash(s),u.id,expiry);
     return send(res,safeUser(u),200,{'Set-Cookie':'lees_session='+s+'; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200'+secure});
   }
   check(user,'Đăng nhập để tiếp tục.',401);
   if(p==='/api/logout'&&m==='POST'){
-    storage.prepare('DELETE FROM sessions WHERE token=?').run(hash(cookies(req).lees_session));
+    await storage.run('DELETE FROM lees_shop.sessions WHERE token=?',hash(cookies(req).lees_session));
     return send(res,{ok:true},200,{'Set-Cookie':'lees_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'+secure});
   }
   const canSee=o=>user.role==='admin'||(user.role==='courier'?o.courier===user.id&&[4,5,6].includes(states.indexOf(o.status)):[1,2,3,4,5,6].includes(states.indexOf(o.status)));
@@ -241,7 +250,7 @@ async function api(req,res,url){
   }
   if(p.startsWith('/api/manage/order/')&&m==='PATCH'){
     const b=await json(req);
-    return send(res,write(db=>{
+    return send(res,await write(db=>{
       const o=db.orders.find(o=>o.id===p.split('/').at(-1));
       check(o&&canSee(o),'Không tìm thấy đơn.',404);
       orderUpdate(db,user,o,b);
@@ -251,7 +260,7 @@ async function api(req,res,url){
   check(user.role==='admin','Tài khoản không có quyền truy cập.',403);
   if(p==='/api/manage/order'&&m==='POST'){
     const b=await json(req);
-    return send(res,write(db=>place(db,b,user.name)).map(publicOrder),201);
+    return send(res,(await write(db=>place(db,b,user.name))).map(publicOrder),201);
   }
   if(p==='/api/manage/report'&&m==='GET') return send(res,report(db,q));
   if(p==='/api/manage/qr'&&m==='GET'){
@@ -273,12 +282,12 @@ async function api(req,res,url){
   if(p==='/api/manage/import'&&m==='POST'){
     const rows=await parseExcel(req);
     if(q.get('apply')!=='1') return send(res,importRows(db,rows));
-    return send(res,write(db=>{const out=importRows(db,rows);check(!out.errors.length,'Tệp có dòng lỗi. Hãy xem trước và sửa rồi nhập lại.');return out;}));
+    return send(res,await write(db=>{const out=importRows(db,rows);check(!out.errors.length,'Tệp có dòng lỗi. Hãy xem trước và sửa rồi nhập lại.');return out;}));
   }
   if(p==='/api/manage/purchases/preview'&&m==='GET') return send(res,purchasePreview(db,q.get('week')));
   check(m==='POST','Không tìm thấy chức năng.',404);
   const b=await json(req);
-  return send(res,write(db=>{
+  return send(res,await write(db=>{
     if(p==='/api/manage/product'){
       const existing=b.id&&db.products.find(p=>p.id===b.id);
       check(!b.id||existing,'Không tìm thấy sản phẩm.',404);
@@ -330,7 +339,7 @@ async function api(req,res,url){
   }));
 }
 const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.jpg':'image/jpeg','.svg':'image/svg+xml'};
-const server=createServer(async(req,res)=>{
+export async function handleRequest(req,res){
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','no-referrer');
   res.setHeader('X-Frame-Options','DENY');
@@ -357,5 +366,8 @@ const server=createServer(async(req,res)=>{
     if(!res.headersSent) send(res,{error:status===500?'Có lỗi hệ thống. Vui lòng thử lại.':status===404?'Không tìm thấy nội dung.':e.message},status);
     else res.end();
   }
-});
-server.listen(Number(process.env.PORT||3000),process.env.HOST||'0.0.0.0',()=>console.log('Lee’s Shop listening on '+server.address().port));
+}
+if (!process.env.VERCEL) {
+  const server=createServer(handleRequest);
+  server.listen(Number(process.env.PORT||3000),process.env.HOST||'0.0.0.0',()=>console.log('Lee’s Shop listening on '+server.address().port+' ('+storage.kind+')'));
+}

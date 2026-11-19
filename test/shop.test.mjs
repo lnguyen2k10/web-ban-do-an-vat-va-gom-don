@@ -30,7 +30,8 @@ test('Tách lịch, nối hồ sơ theo điện thoại và gom từng cụm',()
 });
 test('Máy chủ lưu đơn, kiểm soát vai trò và tính báo cáo',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'lees-test-'));
-  const env={...process.env,HOST:'127.0.0.1',PORT:'0',DB_PATH:join(dir,'shop.sqlite'),ADMIN_LOGIN:'admin',ADMIN_PASSWORD:'testing-setup-2026',COOKIE_SECURE:'0',PUBLIC_URL:'',TELEGRAM_BOT_TOKEN:''};
+  const url=process.env.TEST_DATABASE_URL;
+  const env={...process.env,DB_ENGINE:url?'postgres':'sqlite',DATABASE_URL:url||'',DB_SKIP_MIGRATIONS:'0',HOST:'127.0.0.1',PORT:'0',DB_PATH:join(dir,'shop.sqlite'),ADMIN_LOGIN:'admin',ADMIN_PASSWORD:'testing-setup-2026',COOKIE_SECURE:'0',PUBLIC_URL:'',TELEGRAM_BOT_TOKEN:''};
   let child;
   t.after(async()=>{if(child?.exitCode===null){child.kill();await once(child,'exit');}await rm(dir,{recursive:true,force:true});});
   async function start(){
@@ -79,7 +80,13 @@ test('Máy chủ lưu đơn, kiểm soát vai trò và tính báo cáo',async t=
   assert.equal((await patch({payment:55000})).status,200);
   const report=(await call('/api/manage/report?by=order')).body[0];
   assert.deepEqual([report.revenue,report.received,report.cost,report.expenses,report.profit],[55000,55000,26000,4000,25000]);
+  const batch=await Promise.all(Array.from({length:6},(_,i)=>call('/api/manage/order',{
+    name:'Đơn song song '+i,address:'Nguyễn Gia Trí',phone:'0901234567',group:catalog.groups[0].id,
+    lines:[{id:catalog.products[1].id,qty:1}]
+  })));
+  assert.ok(batch.every(r=>r.status===201));
+  assert.equal((await call('/api/manage')).body.orders.length,7);
   child.kill();await once(child,'exit');
   base=await start();
-  assert.equal((await call('/api/manage')).body.orders[0].status,states[5]);
+  assert.equal((await call('/api/manage')).body.orders.find(order=>order.id===o.id).status,states[5]);
 });

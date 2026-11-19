@@ -1,1 +1,1 @@
-{"name":"lees-shop","version":"0.1.0","private":true,"type":"module","engines":{"node":">=24"},"scripts":{"start":"node --env-file-if-exists=.env server.mjs","test":"node --test"},"dependencies":{"exceljs":"^4.4.0","qrcode":"^1.5.4"}}
+{"name":"lees-shop","version":"0.1.0","private":true,"type":"module","engines":{"node":">=24"},"scripts":{"start":"node --env-file-if-exists=.env server.mjs","test":"node --test"},"dependencies":{"@vercel/functions":"^3.11.3","exceljs":"^4.4.0","pg":"^8.23.1","qrcode":"^1.5.4"}}
