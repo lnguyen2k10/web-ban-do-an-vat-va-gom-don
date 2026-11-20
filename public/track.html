@@ -1,1 +1,23 @@
-<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tra đơn · Lee’s Shop</title><link rel="stylesheet" href="/shop.css"><script type="module" src="/track.js"></script></head><body><header class="top"><div class="nav wrap"><a href="/" class="brand">Lee’s Shop</a><a href="/" class="button outline">Về cửa hàng</a></div></header><main class="track wrap"><h1>Tra cứu đơn hàng</h1><div id="order" aria-live="polite"></div><div class="panel"><h2>Lịch sử mua hàng</h2><p>Nhập số điện thoại và mã SMS để xem các đơn của anh/chị.</p><form id="lookup" class="form"><label>Số điện thoại<input type="tel" autocomplete="tel" name="phone" required></label><button class="button olive">Gửi mã SMS</button><label id="code-field" hidden>Mã xác minh<input name="code" inputmode="numeric" autocomplete="one-time-code"></label><button class="button outline" name="verify" value="1" hidden>Xem lịch sử</button><p class="error" id="error" role="alert"></p></form></div><div id="history" aria-live="polite"></div></main></body></html>
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tra đơn · Lee’s Shop</title>
+  <link rel="stylesheet" href="/shop.css">
+  <script type="module" src="/track.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="nav wrap"><a href="/" class="brand">Lee’s Shop</a><a href="/" class="button outline">Về cửa hàng</a></div>
+  </header>
+  <main class="track wrap">
+    <h1>Tra cứu đơn hàng</h1>
+    <div id="order" aria-live="polite"></div>
+    <div class="panel">
+      <h2>Link tra đơn của anh/chị</h2>
+      <p>Sau khi đặt hàng, hãy lưu link tra cứu trên màn hình xác nhận. Mở lại link đó để xem trạng thái giao và số tiền còn lại.</p>
+    </div>
+  </main>
+</body>
+</html>

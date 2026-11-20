@@ -5,7 +5,7 @@ import {extname} from 'node:path';
 import ExcelJS from 'exceljs';
 import QRCode from 'qrcode';
 import { waitUntil } from '@vercel/functions';
-import {amount,calendar,check,clean,id,orderUpdate,paid,phone,place,publicOrder,purchasePreview,seed,states,total} from './domain.mjs';
+import {amount,calendar,check,clean,id,orderUpdate,paid,place,publicOrder,purchasePreview,seed,states,total} from './domain.mjs';
 
 import {initShop,loadShop,openStorage,writeShop} from './db/storage.mjs';
 
@@ -102,16 +102,6 @@ async function auth(req,db){
   return session&&db.users.find(u=>u.id===session.account);
 }
 const secure=process.env.COOKIE_SECURE==='1'?'; Secure':'';
-async function sms(number,action,code){
-  const service=process.env.TWILIO_VERIFY_SERVICE, account=process.env.TWILIO_ACCOUNT_SID, token=process.env.TWILIO_AUTH_TOKEN;
-  check(service&&account&&token,'Tra cứu bằng SMS chưa bật. Anh/chị có thể dùng link tra cứu đã nhận khi đặt.',503);
-  const endpoint=action==='send'?'Verifications':'VerificationCheck';
-  const data=new URLSearchParams({To:'+84'+number.slice(1),...(action==='send'?{Channel:'sms'}:{Code:code})});
-  const response=await fetch('https://verify.twilio.com/v2/Services/'+encodeURIComponent(service)+'/'+endpoint,{method:'POST',body:data,headers:{Authorization:'Basic '+Buffer.from(account+':'+token).toString('base64')},signal:AbortSignal.timeout(8000)});
-  const result=await response.json();
-  check(response.ok,action==='send'?'Không gửi được SMS.':'Mã xác minh không hợp lệ hoặc đã hết hạn.',action==='send'?502:400);
-  return result;
-}
 async function notify(orders){
   const token=process.env.TELEGRAM_BOT_TOKEN, chat=process.env.TELEGRAM_CHAT_ID;
   if(!token||!chat) return;
@@ -207,22 +197,6 @@ async function api(req,res,url){
     const o=db.orders.find(o=>o.token===q.get('token'));
     check(o,'Không tìm thấy đơn.',404);
     return send(res,publicOrder(o));
-  }
-  if(m==='POST'&&p==='/api/history/send'){
-    limit('sms:'+rates(req),8);
-    const b=await json(req), n=phone(b.phone);
-    limit('sms:n:'+n,4);
-    await sms(n,'send');
-    return send(res,{ok:true});
-  }
-  if(m==='POST'&&p==='/api/history/verify'){
-    limit('otp:'+rates(req),30);
-    const b=await json(req), n=phone(b.phone);
-    limit('otp:n:'+n,10);
-    check(/^\d{4,10}$/.test(b.code),'Nhập mã xác minh.');
-    const r=await sms(n,'verify',b.code);
-    check(r.status==='approved','Mã xác minh không hợp lệ.');
-    return send(res,(await load()).orders.filter(o=>o.phone===n).reverse().map(publicOrder));
   }
   if(m==='POST'&&p==='/api/login'){
     limit('login:'+rates(req),15);

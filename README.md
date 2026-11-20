@@ -43,6 +43,6 @@ Repo có cấu hình phục vụ trang tĩnh và Node API trên Vercel. Khai bá
 5. **Quản trị** có toàn quyền, **Soạn hàng** xem các đơn đã xác nhận và cập nhật bước soạn, **Giao hàng** xem đơn được giao việc và báo kết quả. Quản trị xếp lịch, phân người giao, ghi thực thu và mức cọc từng đơn gom.
 6. **Báo cáo** ghi nhận doanh thu, giá vốn và chi phí trực tiếp theo ngày hoàn thành giao. Tiền thực thu theo ngày ghi nhận thanh toán, kể cả cọc trước ngày giao. Chi phí chung theo ngày phát sinh. Lãi bằng doanh thu trừ giá vốn và chi phí.
 
-Bot Telegram tự gửi tóm tắt cho đơn web nếu có `TELEGRAM_BOT_TOKEN` và `TELEGRAM_CHAT_ID`. Nếu Telegram lỗi, đơn vẫn lưu và hiển thị trong quản trị. Cấu hình Twilio Verify bằng ba biến `TWILIO_*` để bật tra lịch sử bằng SMS. Link tra riêng tạo ngay lúc đặt. Các cấu hình bí mật nằm trong `.env` hoặc trình quản lý biến môi trường của máy chủ.
+Bot Telegram tự gửi tóm tắt cho đơn web nếu có `TELEGRAM_BOT_TOKEN` và `TELEGRAM_CHAT_ID`. Nếu Telegram lỗi, đơn vẫn lưu và hiển thị trong quản trị. Link tra riêng tạo ngay lúc đặt. Khách dùng link này để xem trạng thái đơn. Quản trị xem lịch sử khách theo số điện thoại. Các cấu hình bí mật nằm trong `.env` hoặc trình quản lý biến môi trường của máy chủ.
 
 Ảnh và giá trong danh mục là dữ liệu minh họa. Các link Zalo, phí giao và địa chỉ tập kết có thể điền khi chốt thông tin thật.
