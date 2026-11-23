@@ -6,21 +6,55 @@ const slides=[
   {kicker:'CHỐT GOM 17H THỨ NĂM',title:['Đặt trước,','giao cuối tuần.'],text:'Lạp xưởng, chả lụa và món muối chua cho bữa cơm nhà. Lee’s Shop giao theo cụm vào thứ Bảy hoặc Chủ nhật.',image:'lap-xuong',alt:'Lạp xưởng',target:'#weekly',button:'Xem món gom'}
 ];
 const slideButtons=[...document.querySelectorAll('[data-slide]')];
+const rotation=$('#hero-rotation');
+const motion=matchMedia('(prefers-reduced-motion: reduce)');
+let currentSlide=0, rotationTimer, paused=motion.matches;
+function showSlide(index){
+  currentSlide=index;
+  const slide=slides[index];
+  $('#hero-kicker').textContent=slide.kicker;
+  const accent=document.createElement('em');
+  accent.textContent=slide.title[1];
+  $('#hero-title').replaceChildren(slide.title[0],document.createElement('br'),accent);
+  $('#hero-intro').textContent=slide.text;
+  $('#hero-photo').src='/img/'+slide.image+'.jpg';
+  $('#hero-photo').alt=slide.alt;
+  $('#hero-action').href=slide.target;
+  $('#hero-action').textContent=slide.button;
+  for(const tab of slideButtons) tab.setAttribute('aria-pressed',String(Number(tab.dataset.slide)===index));
+}
+function scheduleSlide(){
+  clearTimeout(rotationTimer);
+  rotation.textContent=paused?'Tự chuyển':'Tạm dừng';
+  rotation.setAttribute('aria-label',paused?'Bật tự chuyển slide':'Tạm dừng tự chuyển slide');
+  if(paused||document.hidden) return;
+  rotationTimer=setTimeout(()=>{
+    showSlide((currentSlide+1)%slides.length);
+    scheduleSlide();
+  },6000);
+}
 for(const button of slideButtons){
   button.addEventListener('click',()=>{
-    const slide=slides[Number(button.dataset.slide)];
-    $('#hero-kicker').textContent=slide.kicker;
-    const accent=document.createElement('em');
-    accent.textContent=slide.title[1];
-    $('#hero-title').replaceChildren(slide.title[0],document.createElement('br'),accent);
-    $('#hero-intro').textContent=slide.text;
-    $('#hero-photo').src='/img/'+slide.image+'.jpg';
-    $('#hero-photo').alt=slide.alt;
-    $('#hero-action').href=slide.target;
-    $('#hero-action').textContent=slide.button;
-    for(const tab of slideButtons) tab.setAttribute('aria-pressed',String(tab===button));
+    showSlide(Number(button.dataset.slide));
+    scheduleSlide();
   });
 }
+rotation.hidden=false;
+rotation.addEventListener('click',()=>{
+  paused=!paused;
+  scheduleSlide();
+});
+$('.hero-shell').addEventListener('focusin',e=>{
+  if(e.target===rotation||paused) return;
+  paused=true;
+  scheduleSlide();
+});
+motion.addEventListener('change',e=>{
+  paused=e.matches;
+  scheduleSlide();
+});
+document.addEventListener('visibilitychange',scheduleSlide);
+scheduleSlide();
 const groupLink=new URL(location.href).searchParams.get('cum')||'';
 let data,selectedGroup=groupLink, buyer={}, bag;
 try{bag=JSON.parse(localStorage.getItem('lees-cart'))||{};}catch{bag={};}
