@@ -26,6 +26,12 @@ export function calendar(now = new Date()) {
   next.setUTCDate(next.getUTCDate()+1);
   return {date, daily:+p.hour<17, weekly:day>=1&&day<=4&&(day!==4||+p.hour<17), saturday, sunday:next.toISOString().slice(0,10)};
 }
+export const defaultCategories={
+  BTB:'Bánh tráng',CCB:'Cơm cháy',LXT:'Đồ nguội',CLU:'Đồ nguội',DMC:'Đồ muối chua'
+};
+export function categoryOf(product){
+  return product.category||defaultCategories[product.sku]||'Khác';
+}
 export function seed() {
   const products = [
     ['BTB','Bánh tráng bơ','1 phần',25000,13000,'daily','Bánh tráng dẻo trộn bơ béo, hành phi và gia vị.','banh-trang'],

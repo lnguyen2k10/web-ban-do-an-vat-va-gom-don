@@ -43,8 +43,19 @@ function increment(id,step){
 function product(p){
   return '<article class="card"><button class="image-button" data-detail="'+p.id+'" aria-label="Xem '+esc(p.name)+'"><img loading="lazy" src="'+esc(p.images[0])+'" alt="'+esc(p.name)+'">'+(p.images.length>1?'<span class="photo-count">'+p.images.length+' ảnh</span>':'')+'</button><div class="card-content"><h3>'+esc(p.name)+'</h3><p>'+esc(p.unit)+' · '+esc(p.description)+'</p>'+saleLabel(p)+'<div class="price-line"><span class="price">'+money(price(p))+(p.promo==null?'':' <del>'+money(p.price)+'</del>')+'</span><button class="button '+(canBuy(p)?'olive':'outline')+'" data-add="'+p.id+'" '+(canBuy(p)?'':'disabled')+'> '+(canBuy(p)?'Thêm':'Đã chốt')+'</button></div></div></article>';
 }
+const selectedCategories={daily:'',weekly:''};
+function renderProducts(kind){
+  const list=data.products.filter(p=>p.kind===kind);
+  const cats=[...new Set(list.map(p=>p.category))].filter(Boolean).sort((a,b)=>a.localeCompare(b,'vi'));
+  const tabs=$('#'+kind+'-categories');
+  tabs.hidden=cats.length<2;
+  if(!cats.includes(selectedCategories[kind])) selectedCategories[kind]='';
+  tabs.innerHTML=['',...cats].map(category=>`<button type="button" data-kind="${kind}" data-category="${esc(category)}" aria-pressed="${category===selectedCategories[kind]}">${esc(category||'Tất cả')}</button>`).join('');
+  const visible=list.filter(p=>!selectedCategories[kind]||p.category===selectedCategories[kind]);
+  $('#'+kind+'-grid').innerHTML=visible.map(product).join('')||'<p>Chưa có món đang bán.</p>';
+}
 function render(){
-  for(const kind of Object.keys(days)) $('#'+kind+'-grid').innerHTML=data.products.filter(p=>p.kind===kind).map(product).join('')||'<p>Chưa có món đang bán.</p>';
+  for(const kind of Object.keys(days)) renderProducts(kind);
   $('#daily-window').textContent=data.schedule.daily?'Đang nhận đơn hôm nay đến 17h':'Đã chốt đơn hôm nay';
   $('#weekly-window').textContent=(data.schedule.weekly?'Đang nhận đơn · Giao ':'Đợt nhận đơn tiếp theo giao ')+date(data.schedule.saturday)+' – '+date(data.schedule.sunday);
   $('#daily-delivery').textContent=data.schedule.daily?'Giao hôm nay · '+date(data.schedule.date):'Đã hết giờ nhận đơn giao hôm nay.';
@@ -127,6 +138,11 @@ document.addEventListener('click',e=>{
   if(!b) return;
   if(b.classList.contains('close')) b.closest('dialog').close();
   if(!data) return;
+  if(b.dataset.category!==undefined){
+    selectedCategories[b.dataset.kind]=b.dataset.category;
+    renderProducts(b.dataset.kind);
+    $('#'+b.dataset.kind+'-categories button[aria-pressed=true]')?.focus();
+  }
   if(b.id==='cart-button') openCart();
   if(b.id==='start-checkout') openCart(true);
   if(b.id==='edit-cart'){

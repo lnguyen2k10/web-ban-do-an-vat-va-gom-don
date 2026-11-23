@@ -5,7 +5,7 @@ import {extname} from 'node:path';
 import ExcelJS from 'exceljs';
 import QRCode from 'qrcode';
 import { waitUntil } from '@vercel/functions';
-import {activePromo,amount,calendar,check,clean,id,orderUpdate,paid,place,publicOrder,purchasePreview,seed,states,total} from './domain.mjs';
+import {activePromo,amount,calendar,categoryOf,check,clean,id,orderUpdate,paid,place,publicOrder,purchasePreview,seed,states,total} from './domain.mjs';
 
 import {initShop,loadShop,openStorage,writeShop} from './db/storage.mjs';
 
@@ -103,9 +103,9 @@ function product(db,b,editing){
   check(promo!==null||(!promoStart&&!promoEnd),'Nhập giá ưu đãi khi cài lịch ưu đãi.');
   check(images.length>=1&&images.length<=5&&images.reduce((size,image)=>size+(typeof image==='string'?image.length:0),0)<=3250000&&images.every(v=>typeof v==='string'&&v.length<=900000&&photo(v)),'Cần 1–5 ảnh JPG, PNG, WebP hoặc link HTTPS. Tổng dung lượng ảnh lưu tối đa khoảng 2,4 MB.');
   check(db.suppliers.some(s=>s.id===b.supplier),'Chọn nhà cung cấp.');
-  return {id:editing||id(),sku,name,unit,kind:b.kind,price,cost,promo,promoStart,promoEnd,description:clean(b.description,1200),images,youtube:youtubeLink(b.youtube),supplier:b.supplier,active:b.active!==false};
+  return {id:editing||id(),sku,name,unit,kind:b.kind,category:clean(b.category,60)||categoryOf({sku}),price,cost,promo,promoStart,promoEnd,description:clean(b.description,1200),images,youtube:youtubeLink(b.youtube),supplier:b.supplier,active:b.active!==false};
 }
-const excelKeys=['sku','name','unit','kind','price','promo','cost','supplier','description','image1','image2','image3','image4','image5','youtube','promoStart','promoEnd'];
+const excelKeys=['sku','name','unit','kind','price','promo','cost','supplier','description','image1','image2','image3','image4','image5','youtube','promoStart','promoEnd','category'];
 async function parseExcel(req){
   const book=new ExcelJS.Workbook();
   try{await book.xlsx.load(await body(req));}catch(e){if(e.status) throw e;check(false,'Không đọc được tệp XLSX.');}
@@ -139,6 +139,7 @@ function importRows(db,rows,update) {
       const kind=clean(b.kind).toLowerCase();
       const options={...existing,...b,kind:['ăn vặt','an vat'].includes(kind)?'daily':['món gom','mon gom','đặt gom','dat gom'].includes(kind)?'weekly':kind};
       if(existing&&!b.images.length) options.images=existing.images;
+      if(existing&&!b.category) options.category=existing.category;
       const p=product(db,options,existing?.id);
       if(existing) Object.assign(existing,p); else db.products.push(p);
       result.push({sku:p.sku,name:p.name,action:existing?'Cập nhật':'Thêm mới'});
@@ -230,7 +231,7 @@ async function api(req,res,url){
   if(m==='GET'&&p==='/api/catalog'){
     const schedule=calendar();
     return send(res,{schedule,products:db.products.filter(p=>p.active)
-      .map(({cost,supplier,...p})=>({...p,promo:activePromo(p,schedule.date),images:photoList(p)})),
+      .map(({cost,supplier,...p})=>({...p,category:categoryOf(p),promo:activePromo(p,schedule.date),images:photoList(p)})),
       groups:db.groups.filter(g=>g.active).map(({hub,...g})=>g),zalo:db.settings?.zalo??process.env.ZALO_URL??''});
   }
   if(m==='POST'&&p==='/api/orders'){
@@ -284,7 +285,7 @@ async function api(req,res,url){
       const {id,code,name,date,delivery,week,groupName,status,kind}=o;
       return {id,code,name,date,delivery,week,groupName,status,kind,...(user.role==='courier'?{phone:o.phone,address:o.address,due:total(o)-paid(o)}:{lines:o.lines.map(({name,unit,qty})=>({name,unit,qty}))})};
     });
-    return send(res,{user:safeUser(user),orders,...(user.role==='admin'?{products:db.products.map(p=>({...p,images:photoList(p)})),groups:db.groups,suppliers:db.suppliers,users:db.users.map(safeUser),customers:db.customers,settings:{zalo:db.settings?.zalo??process.env.ZALO_URL??''},purchases:db.purchases,expenses:db.expenses}:{}),schedule:calendar()});
+    return send(res,{user:safeUser(user),orders,...(user.role==='admin'?{products:db.products.map(p=>({...p,category:categoryOf(p),images:photoList(p)})),groups:db.groups,suppliers:db.suppliers,users:db.users.map(safeUser),customers:db.customers,settings:{zalo:db.settings?.zalo??process.env.ZALO_URL??''},purchases:db.purchases,expenses:db.expenses}:{}),schedule:calendar()});
   }
   if(p.startsWith('/api/manage/order/')&&m==='PATCH'){
     const b=await json(req);
@@ -321,7 +322,8 @@ async function api(req,res,url){
       ['promoStart / promoEnd','Ngày Việt Nam, YYYY-MM-DD. Ưu đãi tính hết ngày kết thúc.'],
       ['supplier','Mã nhà cung cấp trong trang Quản trị.'],
       ['image1–image5 / youtube','Link ảnh HTTPS hoặc link video YouTube.'],
-      ['sku','Mỗi món dùng một mã riêng. Có thể bật cập nhật theo SKU khi nhập.']
+      ['sku','Mỗi món dùng một mã riêng. Có thể bật cập nhật theo SKU khi nhập.'],
+      ['category','Nhóm sản phẩm, ví dụ Hải sản cấp đông, Đồ nguội, Hạt điều hoặc Bánh tráng.']
     ]);
     guide.getColumn(1).width=28;
     guide.getColumn(2).width=88;

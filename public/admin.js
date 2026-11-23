@@ -1,4 +1,5 @@
 import {$,api,esc,money,date,days,pairs} from './common.js';
+const categorySuggestions=['Đồ khô','Hải sản cấp đông','Đồ nguội','Hạt điều','Trái cây sấy dẻo','Trà','Rượu','Đồ muối chua','Bánh tráng','Rau câu','Cơm cháy','Khác'];
 const photoSlots=[0,1,2,3,4];
 const statuses=['Chờ xác nhận','Đã xác nhận','Đang soạn','Đã soạn','Đang giao','Đã giao','Giao chưa thành công','Đã hủy'];
 const roles={admin:'Quản trị',staff:'Soạn hàng',courier:'Giao hàng'};
@@ -68,13 +69,13 @@ function manual(){
 }
 function products(){
   return '<div class="actions">'+button('Thêm sản phẩm','product','',true)+button('Nhập Excel','import')+'<a class="button outline" href="/api/manage/template">Tải Excel mẫu</a></div>'+
-    table(['Ảnh','Món','Nhóm','Giá thường / ưu đãi','Nhà cung cấp','Thao tác'],data.products.map(p=>['<img class="photo-preview" alt="" src="'+esc(p.images[0])+'">',esc(p.name)+'<br>'+esc(p.sku)+(p.active?'':' · Ẩn'),days[p.kind],money(p.price)+(p.promo==null?'':' / '+money(p.promo)+'<br><small>'+esc(p.promoStart?date(p.promoStart):'Có hiệu lực ngay')+(p.promoEnd?' – '+esc(date(p.promoEnd)):'')+'</small>'),esc(get('suppliers',p.supplier)?.name),button('Sửa','product',p.id)+' '+button('Nhân bản','copy',p.id)]));
+    table(['Ảnh','Món','Nhóm','Giá thường / ưu đãi','Nhà cung cấp','Thao tác'],data.products.map(p=>['<img class="photo-preview" alt="" src="'+esc(p.images[0])+'">',esc(p.name)+'<br>'+esc(p.sku)+(p.active?'':' · Ẩn'),days[p.kind]+'<br><small>'+esc(p.category)+'</small>',money(p.price)+(p.promo==null?'':' / '+money(p.promo)+'<br><small>'+esc(p.promoStart?date(p.promoStart):'Có hiệu lực ngay')+(p.promoEnd?' – '+esc(date(p.promoEnd)):'')+'</small>'),esc(get('suppliers',p.supplier)?.name),button('Sửa','product',p.id)+' '+button('Nhân bản','copy',p.id)]));
 }
 function productEditor(p,copy){
   const value=p||{};
   edit(copy?'Nhân bản sản phẩm':p?'Sửa sản phẩm':'Thêm sản phẩm',form('<input type="hidden" name="id" value="'+(copy?'':esc(value.id))+'"><div class="fields">'+
     field('Tên món','name',value.name,'text','required')+field('Mã SKU','sku',copy?'':value.sku,'text','required')+field('Quy cách','unit',value.unit,'text','required')+
-    select('Nhóm món','kind',Object.entries(days),value.kind||'daily')+field('Giá bán','price',value.price,'number',num+' required')+field('Giá ưu đãi','promo',value.promo,'number',num)+field('Giá vốn','cost',value.cost,'number',num+' required')+
+    select('Lịch bán','kind',Object.entries(days),value.kind||'daily')+field('Nhóm sản phẩm','category',value.category,'text','list="categories" maxlength="60"')+'<datalist id="categories">'+[...new Set([...categorySuggestions,...data.products.map(p=>p.category).filter(Boolean)])].map(v=>'<option value="'+esc(v)+'"></option>').join('')+'</datalist>'+field('Giá bán','price',value.price,'number',num+' required')+field('Giá ưu đãi','promo',value.promo,'number',num)+field('Giá vốn','cost',value.cost,'number',num+' required')+
     field('Ưu đãi từ ngày','promoStart',value.promoStart,'date')+field('Ưu đãi đến hết ngày','promoEnd',value.promoEnd,'date')+
     select('Nhà cung cấp','supplier',links(data.suppliers),value.supplier||'mau')+'</div><label>Mô tả<textarea name="description" maxlength="1200">'+esc(value.description)+'</textarea></label>'+
     '<p class="muted">Thêm tối đa 5 ảnh JPG, PNG hoặc WebP. Ảnh đầu tiên làm ảnh đại diện. Ảnh lớn được thu nhỏ tự động.</p>'+
@@ -95,7 +96,7 @@ function supplierEditor(s={}){
     field('Số liên hệ','phone',s.phone,'tel')+field('Địa chỉ','address',s.address)+submit(),'supplier'));
 }
 function importEditor(){
-  edit('Nhập sản phẩm từ Excel',form('<p>Điền <code>daily</code> hoặc <strong>Ăn vặt</strong> cho món giao trong ngày, <code>weekly</code> hoặc <strong>Món gom</strong> cho món giao cuối tuần. Có thể nhập chung hai nhóm trong một file. Cột <code>supplier</code> dùng mã nhà cung cấp. Ngày ưu đãi theo mẫu YYYY-MM-DD.</p><label>Tệp .xlsx<input type="file" name="file" accept=".xlsx" required></label>'+checkbox('Cập nhật món đã có theo mã SKU', 'update', false)+submit('Xem trước'),'import')+'<div id="import-results"></div>');
+  edit('Nhập sản phẩm từ Excel',form('<p>Điền <code>daily</code> hoặc <strong>Ăn vặt</strong> cho món giao trong ngày, <code>weekly</code> hoặc <strong>Món gom</strong> cho món giao cuối tuần. Có thể nhập chung hai nhóm trong một file. Cột <code>supplier</code> dùng mã nhà cung cấp. Ngày ưu đãi theo mẫu YYYY-MM-DD. Cột <code>category</code> dùng để phân nhóm món trên trang chủ.</p><label>Tệp .xlsx<input type="file" name="file" accept=".xlsx" required></label>'+checkbox('Cập nhật món đã có theo mã SKU', 'update', false)+submit('Xem trước'),'import')+'<div id="import-results"></div>');
 }
 function purchaseForm(){
   const chosen=purchaseWeek||data.schedule.saturday;
