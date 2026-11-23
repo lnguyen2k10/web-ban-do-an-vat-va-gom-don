@@ -75,9 +75,10 @@ function productEditor(p,copy){
     field('Tên món','name',value.name,'text','required')+field('Mã SKU','sku',copy?'':value.sku,'text','required')+field('Quy cách','unit',value.unit,'text','required')+
     select('Nhóm món','kind',Object.entries(days),value.kind||'daily')+field('Giá bán','price',value.price,'number',num+' required')+field('Giá ưu đãi','promo',value.promo,'number',num)+field('Giá vốn','cost',value.cost,'number',num+' required')+
     select('Nhà cung cấp','supplier',links(data.suppliers),value.supplier||'mau')+'</div><label>Mô tả<textarea name="description" maxlength="1200">'+esc(value.description)+'</textarea></label>'+
-    [0,1,2].map(i=>'<div class="fields">'+field('Ảnh '+(i+1)+' · URL HTTPS','image'+i,value.images?.[i]?.startsWith('data:')?'':value.images?.[i],'text')+
+    '<p class="muted">Chọn tối đa 3 ảnh JPG, PNG hoặc WebP. Ảnh lớn sẽ được thu nhỏ tự động.</p>'+
+    [0,1,2].map(i=>'<div class="fields">'+field('Ảnh '+(i+1)+' · URL HTTPS','image'+i,value.images?.[i]?.startsWith('/api/photo?')?'':value.images?.[i],'text')+
       '<label>Hoặc chọn ảnh '+(i+1)+'<input name="file'+i+'" type="file" accept="image/jpeg,image/png,image/webp"></label>'+
-      (value.images?.[i]?.startsWith('data:')?checkbox('Giữ ảnh đã tải lên','keep'+i,true):'')+'</div>').join('')+
+      (value.images?.[i]?.startsWith('/api/photo?')?'<img class="photo-preview" src="'+esc(value.images[i])+'" alt="Ảnh '+(i+1)+' hiện tại">'+checkbox('Giữ ảnh đã tải lên','keep'+i,true):'')+'</div>').join('')+
     checkbox('Hiện trong cửa hàng','active',value.active!==false)+submit(),'product'));
   dialog.currentProduct=value;
 }
@@ -101,11 +102,21 @@ function purchaseForm(){
     return [date(p.week),esc(p.supplier),[...new Set(p.rows.map(r=>r.destination))].map(x=>esc(x)).join('<br>'),money(value)+' / '+money(p.paid)+'<br>Còn '+money(value-p.paid),received+' / '+ordered,button('Mở phiếu','purchase-view',p.id)];
   }));
 }
+function supplierTotals(rows) {
+  const totals=new Map();
+  for(const row of rows) {
+    const key=JSON.stringify([row.supplier,row.product,row.unit]);
+    const current=totals.get(key)||{...row,qty:0};
+    current.qty+=row.qty;
+    totals.set(key,current);
+  }
+  return [...totals.values()];
+}
 async function preview(){
   const wrapper=$('#preview'),week=purchaseWeek;
   const rows=await api('/api/manage/purchases/preview?week='+encodeURIComponent(week));
   if(!wrapper?.isConnected||week!==purchaseWeek) return;
-  wrapper.innerHTML=rows.length?wrappers(table(['Nhà cung cấp','Cụm','Món','SL','Đơn khách'],rows.map(r=>[esc(get('suppliers',r.supplier)?.name),esc(get('groups',r.group)?.name),esc(r.name),r.qty,r.refs.map(x=>esc(x.code)+' × '+x.qty).join('<br>')]))+
+  wrapper.innerHTML=rows.length?wrappers('<h3>Tổng số cần đặt theo nhà cung cấp</h3>'+table(['Nhà cung cấp','Món','Tổng số'],supplierTotals(rows).map(r=>[esc(get('suppliers',r.supplier)?.name),esc(r.name),r.qty+' '+esc(r.unit)]))+'<h3>Phân bổ theo cụm</h3>'+table(['Nhà cung cấp','Cụm','Món','SL','Đơn khách'],rows.map(r=>[esc(get('suppliers',r.supplier)?.name),esc(get('groups',r.group)?.name),esc(r.name),r.qty,r.refs.map(x=>esc(x.code)+' × '+x.qty).join('<br>')]))+
     form('<div class="fields">'+select('Nhà cung cấp','supplier',links(data.suppliers.filter(s=>rows.some(r=>r.supplier===s.id))))+
     select('Phạm vi phiếu','group',[['all','Tất cả cụm có hàng'],...links(data.groups.filter(g=>rows.some(r=>r.group===g.id)))])+'</div>'+
     field('Điểm nhận chung · bỏ trống để dùng điểm từng cụm','hub')+submit('Lập phiếu'),'purchase')):'<p>Đợt này chưa có món cần lập phiếu.</p>';
@@ -114,7 +125,7 @@ function purchaseEditor(p){
   const text=[p.supplier,'Đợt '+date(p.week),...p.rows.map(r=>r.destination+' | '+r.groupName+' | '+r.name+' × '+r.qty+' '+r.unit)].join('\n');
   edit('Phiếu đặt nhà cung cấp', '<p>'+esc(p.supplier)+' · Đợt '+date(p.week)+'</p>'+
     table(['Cụm / Điểm nhận','Món','Đã đặt','Đã nhận','Đơn khách'],p.rows.map(r=>[esc(r.groupName)+'<br>'+esc(r.destination),esc(r.name),r.qty,r.received,r.refs.map(x=>esc(x.code)+' × '+x.qty).join('<br>')]))+
-    '<details><summary>Nội dung gửi nhà cung cấp</summary><pre>'+esc(text)+'</pre></details>'+
+    '<details open><summary>Nội dung gửi nhà cung cấp</summary><pre id="supplier-copy">'+esc(text)+'</pre>'+button('Sao chép phiếu','copy-purchase')+'</details>'+
     form('<input type="hidden" name="id" value="'+p.id+'"><div class="fields">'+
       p.rows.map((r,i)=>field('Đã nhận · '+esc(r.name)+' / '+esc(r.groupName),'r'+i,r.received,'number',num+' max="'+r.qty+'" required')).join('')+
       field('Tổng đã thanh toán','paid',p.paid,'number',num+' required')+'</div>'+submit(),'purchase-update'));
@@ -136,7 +147,7 @@ function page(){
   const views={
     orders:orderList,products, purchases:purchaseForm,report:reports,
     customers:()=>table(['Khách','Số điện thoại','Địa chỉ mới nhất','Đơn đặt','Thao tác'],data.customers.map(c=>[esc(c.name),esc(c.phone),esc(c.address),data.orders.filter(o=>o.customer===c.id).length,button('Lịch sử','customer',c.id)])),
-    groups:()=>button('Thêm cụm','group','',true)+table(['Tên / Mã','Phạm vi','Điểm tập kết','Phí giao','Thao tác'],data.groups.map(g=>[esc(g.name)+'<br>'+esc(g.id)+(g.active?'':' · Tạm đóng'),esc(g.area),esc(g.hub)||'Chưa cấu hình',g.fee==null?'Báo sau':money(g.fee),button('Sửa','group',g.id)+' '+button('QR & link','qr',g.id)])),
+    groups:()=>button('Thêm cụm','group','',true)+' '+button('Zalo cửa hàng','settings')+table(['Tên / Mã','Phạm vi','Điểm tập kết','Phí giao','Thao tác'],data.groups.map(g=>[esc(g.name)+'<br>'+esc(g.id)+(g.active?'':' · Tạm đóng'),esc(g.area),esc(g.hub)||'Chưa cấu hình',g.fee==null?'Báo sau':money(g.fee),button('Sửa','group',g.id)+' '+button('QR & link','qr',g.id)])),
     suppliers:()=>button('Thêm nhà cung cấp','supplier','',true)+table(['Tên','Mã nhập Excel','Liên hệ','Địa chỉ','Thao tác'],data.suppliers.map(s=>[esc(s.name),'<code>'+esc(s.id)+'</code>',esc(s.phone),esc(s.address),button('Sửa','supplier',s.id)])),
     users:()=>button('Thêm tài khoản','user','',true)+table(['Tên','Tên đăng nhập','Vai trò'],data.users.map(u=>[esc(u.name),esc(u.login),roles[u.role]]))
   };
@@ -177,8 +188,13 @@ document.addEventListener('click',async e=>{
   if(action==='clear-customer'){delete filters.customer;page();}
   if(action==='product'||action==='copy')productEditor(id?get('products',id):null,action==='copy');
   if(action==='import')importEditor();
+  if(action==='settings')edit('Zalo cửa hàng',form(field('Link Zalo liên hệ chung','zalo',data.settings?.zalo,'url')+submit(),'settings'));
   if(action==='group')groupEditor(id?get('groups',id):undefined);
   if(action==='supplier')supplierEditor(id?get('suppliers',id):undefined);
+  if(action==='copy-purchase'){
+    try{await navigator.clipboard.writeText($('#supplier-copy').textContent);b.textContent='Đã sao chép';}
+    catch {b.textContent='Chọn nội dung phía trên để sao chép';}
+  }
   if(action==='purchase-view')purchaseEditor(get('purchases',id));
   if(action==='qr'){
     const link=new URL('/dat-hang?cum='+encodeURIComponent(id),location.origin);
@@ -188,10 +204,30 @@ document.addEventListener('click',async e=>{
   if(action==='user')edit('Thêm tài khoản',form(field('Tên','name','','text','required')+field('Tên đăng nhập','login','','text','required')+field('Mật khẩu','password','','password','required minlength="12"')+select('Vai trò','role',Object.entries(roles),'staff')+submit(),'user'));
   if(action==='expense')edit('Thêm chi phí chung',form(field('Khoản chi','name','','text','required')+field('Ngày','date',data.schedule.date,'date','required')+field('Số tiền','amount','','number',num+' required')+submit(),'expense'));
 });
-const fileURL=file=>new Promise((resolve,reject)=>{
-  if(file.size>650000)return reject(new Error('Mỗi ảnh tối đa 650 KB.'));
-  const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('Không đọc được ảnh.'));reader.readAsDataURL(file);
-});
+async function fileURL(file) {
+  if(!/^image\/(jpeg|png|webp)$/.test(file.type)||file.size>20000000) {
+    throw new Error('Chọn ảnh JPG, PNG hoặc WebP tối đa 20 MB.');
+  }
+  const url=URL.createObjectURL(file);
+  try {
+    const image=new Image();
+    image.src=url;
+    try { await image.decode(); } catch { throw new Error('Không đọc được ảnh đã chọn.'); }
+    const canvas=document.createElement('canvas');
+    const ctx=canvas.getContext('2d');
+    for(const size of [1280,960,720,480]){
+      const scale=Math.min(1,size/Math.max(image.naturalWidth,image.naturalHeight));
+      canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+      canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+      ctx.fillStyle='#fff';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(image,0,0,canvas.width,canvas.height);
+      const output=canvas.toDataURL('image/jpeg',0.8);
+      if(output.length<=325000) return output;
+    }
+    throw new Error('Không thể thu nhỏ ảnh. Hãy chọn ảnh khác.');
+  } finally { URL.revokeObjectURL(url); }
+}
 document.addEventListener('submit',async e=>{
   const f=e.target,action=f.dataset.form;
   if(!action)return;
@@ -208,7 +244,7 @@ document.addEventListener('submit',async e=>{
       await api('/api/manage/order/'+id,payload,'PATCH');
       await refresh();const order=get('orders',id);if(order) orderEditor(order);else dialog.close();message('Đã lưu.',false);return;
     }else if(action==='product'){
-      v.images=(await Promise.all([0,1,2].map(i=>v['file'+i].size?fileURL(v['file'+i]):v['keep'+i]?dialog.currentProduct.images[i]:v['image'+i]))).filter(Boolean);
+      v.images=(await Promise.all([0,1,2].map(i=>v['file'+i].size?fileURL(v['file'+i]):v['image'+i]||(v['keep'+i]?dialog.currentProduct.images[i]:'')))).filter(Boolean);
       v.active=Boolean(v.active);
       for(let i=0;i<3;i++){delete v['file'+i];delete v['keep'+i];delete v['image'+i];}
       await api('/api/manage/product',v);

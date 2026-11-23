@@ -37,12 +37,12 @@ Repo có cấu hình phục vụ trang tĩnh và Node API trên Vercel. Khai bá
 ## Vận hành
 
 1. Vào **Cụm giao**, cập nhật phạm vi, điểm tập kết, phí và link Zalo. Mỗi cụm có link đặt và QR SVG riêng. Với chung cư mới, tạo cụm mới và in QR từ tên miền chính thức.
-2. Vào **Nhà cung cấp** và **Sản phẩm** để thay bộ mẫu. Giá vốn lưu cùng dòng hàng khi tạo đơn. Khi nhập Excel, lấy mã nhà cung cấp từ trang quản trị. Cột ảnh nhận URL HTTPS hoặc đường dẫn ảnh mẫu trong kho mã. Trang sửa món nhận tối đa 3 ảnh JPG, PNG hoặc WebP, mỗi ảnh tải lên tối đa 650 KB.
+2. Vào **Nhà cung cấp** và **Sản phẩm** để thay bộ mẫu. Giá vốn lưu cùng dòng hàng khi tạo đơn. Khi nhập Excel, lấy mã nhà cung cấp từ trang quản trị. Cột ảnh nhận URL HTTPS hoặc đường dẫn ảnh mẫu trong kho mã. Trang sửa món nhận tối đa 3 ảnh JPG, PNG hoặc WebP, mỗi ảnh chọn từ thiết bị tối đa 20 MB và được nén tự động.
 3. Đơn web tách theo lịch bán. Đồ ăn vặt nhận trước 17h mỗi ngày. Đơn gom mở từ thứ Hai đến trước 17h thứ Năm, xếp giao thứ Bảy hoặc Chủ nhật theo giờ Việt Nam. Nút **Nhập đơn Zalo** cho phép admin ghi đơn thủ công ngoài giờ.
 4. Sau khi đóng đợt, vào **Gom hàng**, chọn ngày thứ Bảy của đợt rồi xem số lượng từ các đơn đã xác nhận. Chọn nhà cung cấp và cụm để lập phiếu. Có thể nhập một điểm nhận chung cho cả phiếu. Xem nội dung trong phiếu để gửi nhà cung cấp. Khi hàng về, ghi số thực nhận và tổng đã trả.
 5. **Quản trị** có toàn quyền, **Soạn hàng** xem các đơn đã xác nhận và cập nhật bước soạn, **Giao hàng** xem đơn được giao việc và báo kết quả. Quản trị xếp lịch, phân người giao, ghi thực thu và mức cọc từng đơn gom.
 6. **Báo cáo** ghi nhận doanh thu, giá vốn và chi phí trực tiếp theo ngày hoàn thành giao. Tiền thực thu theo ngày ghi nhận thanh toán, kể cả cọc trước ngày giao. Chi phí chung theo ngày phát sinh. Lãi bằng doanh thu trừ giá vốn và chi phí.
 
-Bot Telegram tự gửi tóm tắt cho đơn web nếu có `TELEGRAM_BOT_TOKEN` và `TELEGRAM_CHAT_ID`. Nếu Telegram lỗi, đơn vẫn lưu và hiển thị trong quản trị. Link tra riêng tạo ngay lúc đặt. Khách dùng link này để xem trạng thái đơn. Quản trị xem lịch sử khách theo số điện thoại. Các cấu hình bí mật nằm trong `.env` hoặc trình quản lý biến môi trường của máy chủ.
+Bot Telegram tự gửi tóm tắt cho đơn web nếu có `TELEGRAM_BOT_TOKEN` và `TELEGRAM_CHAT_ID`. Nếu Telegram lỗi, đơn vẫn lưu và hiển thị trong quản trị. Link tra riêng tạo ngay lúc đặt. Khách dùng link này để xem trạng thái đơn. Trình duyệt cũng lưu các link gần đây trên cùng thiết bị. Quản trị xem lịch sử khách theo số điện thoại. Các cấu hình bí mật nằm trong `.env` hoặc trình quản lý biến môi trường của máy chủ.
 
 Ảnh và giá trong danh mục là dữ liệu minh họa. Các link Zalo, phí giao và địa chỉ tập kết có thể điền khi chốt thông tin thật.

@@ -11,3 +11,19 @@ export async function api(path,data,method=data===undefined?'GET':'POST'){
 }
 export const pairs=form=>Object.fromEntries(new FormData(form));
 export const days={daily:'Ăn vặt',weekly:'Món gom'};
+
+const receiptsKey='lees-order-links';
+export function savedOrders() {
+  try {
+    const entries=JSON.parse(localStorage.getItem(receiptsKey));
+    return Array.isArray(entries)?entries.filter(o=>o&&/^[\w-]{32}$/.test(o.token)&&typeof o.code==='string').slice(0,30):[];
+  } catch { return []; }
+}
+export function rememberOrders(orders) {
+  const recent=[...orders].reverse().map(({token,code,kind,created})=>({token,code,kind,created}));
+  try {
+    const currentTokens=new Set(recent.map(o=>o.token));
+    const entries=[...recent,...savedOrders().filter(o=>!currentTokens.has(o.token))];
+    localStorage.setItem(receiptsKey,JSON.stringify(entries.slice(0,30)));
+  } catch { /* The links are still shown on the receipt. */ }
+}

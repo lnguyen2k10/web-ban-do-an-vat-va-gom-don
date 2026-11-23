@@ -1,4 +1,4 @@
-import {$,esc,money,date,api,pairs,days} from './common.js';
+import {$,esc,money,date,api,pairs,days,rememberOrders} from './common.js';
 const cart=$('#cart'),details=$('#details'), addToast=$('#toast');
 const groupLink=new URL(location.href).searchParams.get('cum')||'';
 let data,selectedGroup=groupLink, buyer={}, bag;
@@ -9,7 +9,7 @@ const price=p=>p.promo??p.price;
 let timer, lastCheckout;
 function toast(s){addToast.textContent=s;addToast.hidden=false;clearTimeout(timer);timer=setTimeout(()=>addToast.hidden=true,1600);}
 function save(){
-  localStorage.setItem('lees-cart',JSON.stringify(bag));
+  try { localStorage.setItem('lees-cart',JSON.stringify(bag)); } catch { /* The cart remains available in this tab. */ }
   $('#count').textContent=items().reduce((t,p)=>t+bag[p.id],0);
 }
 function increment(id,step){
@@ -70,6 +70,7 @@ cart.addEventListener('submit',async e=>{
     const fingerprint=JSON.stringify(payload);
     if(lastCheckout?.fingerprint!==fingerprint) lastCheckout={fingerprint,key:crypto.randomUUID()};
     const orders=await api('/api/orders',{...payload,requestKey:lastCheckout.key});
+    rememberOrders(orders);
     bag={};buyer={};lastCheckout=null;save();
     $('#cart-body').innerHTML='<h3>Đã nhận đơn</h3><p>Lee’s Shop sẽ xác nhận lịch và phí giao. Hãy giữ link để xem trạng thái.</p>'+orders.map(o=>'<p><a class="button outline" href="/tra-don#'+encodeURIComponent(o.token)+'">Xem '+esc(days[o.kind])+' · '+esc(o.code)+'</a></p>').join('');
   }catch(err){message.textContent=err.message;b.disabled=false;}

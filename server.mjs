@@ -59,9 +59,25 @@ async function json(req){
 function photo(v){
   return /^\/img\/[a-z-]+\.jpg$/.test(v)||/^https:\/\/[^\s]+$/i.test(v)||/^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(v);
 }
+const uploadedPhoto=/^data:image\/(jpeg|png|webp);base64,([a-z0-9+/=]+)$/i;
+function photoLink(product, index) {
+  const image=product.images[index];
+  return uploadedPhoto.test(image)?'/api/photo?id='+product.id+'&slot='+index+'&v='+hash(image).slice(0,16):image;
+}
+function photoList(product) {
+  return product.images.map((_, index)=>photoLink(product,index));
+}
+function existingPhoto(db, url) {
+  if(typeof url!=='string'||!url.startsWith('/api/photo?')) return url;
+  const q=new URLSearchParams(url.slice('/api/photo?'.length));
+  const p=db.products.find(p=>p.id===q.get('id'));
+  const index=Number(q.get('slot'));
+  check(p?.images[index]&&photoLink(p,index)===url,'Ảnh cũ đã thay đổi. Hãy mở lại sản phẩm.');
+  return p.images[index];
+}
 function product(db,b,editing){
   const name=clean(b.name,120), sku=clean(b.sku,40).toUpperCase(), unit=clean(b.unit,50);
-  const images=Array.isArray(b.images)?b.images.filter(Boolean):[];
+  const images=Array.isArray(b.images)?b.images.filter(Boolean).map(image=>existingPhoto(db,image)):[];
   const price=amount(b.price), cost=amount(b.cost);
   const promo=b.promo==null||b.promo===''?null:amount(b.promo);
   check(name&&sku&&unit&&['daily','weekly'].includes(b.kind),'Điền mã, tên, quy cách và nhóm món.');
@@ -167,9 +183,17 @@ const validDate=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.i
 async function api(req,res,url){
   const p=url.pathname,m=req.method,q=url.searchParams;
   const db=await load(),user=await auth(req,db);
+  if(m==='GET'&&p==='/api/photo'){
+    const product=db.products.find(item=>item.id===q.get('id')&&(item.active||user?.role==='admin'));
+    const index=Number(q.get('slot'));
+    const match=product?.images[index]?.match(uploadedPhoto);
+    check(match&&q.get('v')===hash(product.images[index]).slice(0,16),'Không tìm thấy ảnh.',404);
+    res.writeHead(200,{'Content-Type':'image/'+match[1].toLowerCase(),'Cache-Control':'private, max-age=300'});
+    return res.end(Buffer.from(match[2],'base64'));
+  }
   if(m==='GET'&&p==='/api/catalog'&&process.env.VERCEL) dispatchNotifications();
-  if(m==='GET'&&p==='/api/catalog') return send(res,{schedule:calendar(),products:db.products.filter(p=>p.active).map(({cost,supplier,...p})=>p),
-    groups:db.groups.filter(g=>g.active).map(({hub,...g})=>g),zalo:process.env.ZALO_URL||''});
+  if(m==='GET'&&p==='/api/catalog') return send(res,{schedule:calendar(),products:db.products.filter(p=>p.active).map(({cost,supplier,...p})=>({...p,images:photoList(p)})),
+    groups:db.groups.filter(g=>g.active).map(({hub,...g})=>g),zalo:db.settings?.zalo??process.env.ZALO_URL??''});
   if(m==='POST'&&p==='/api/orders'){
     limit('order:'+rates(req),40);
     const b=await json(req);
@@ -220,7 +244,7 @@ async function api(req,res,url){
       const {id,code,name,date,delivery,week,groupName,status,kind}=o;
       return {id,code,name,date,delivery,week,groupName,status,kind,...(user.role==='courier'?{phone:o.phone,address:o.address,due:total(o)-paid(o)}:{lines:o.lines.map(({name,unit,qty})=>({name,unit,qty}))})};
     });
-    return send(res,{user:safeUser(user),orders,...(user.role==='admin'?{products:db.products,groups:db.groups,suppliers:db.suppliers,users:db.users.map(safeUser),customers:db.customers,purchases:db.purchases,expenses:db.expenses}:{}),schedule:calendar()});
+    return send(res,{user:safeUser(user),orders,...(user.role==='admin'?{products:db.products.map(p=>({...p,images:photoList(p)})),groups:db.groups,suppliers:db.suppliers,users:db.users.map(safeUser),customers:db.customers,settings:{zalo:db.settings?.zalo??process.env.ZALO_URL??''},purchases:db.purchases,expenses:db.expenses}:{}),schedule:calendar()});
   }
   if(p.startsWith('/api/manage/order/')&&m==='PATCH'){
     const b=await json(req);
@@ -267,6 +291,10 @@ async function api(req,res,url){
       check(!b.id||existing,'Không tìm thấy sản phẩm.',404);
       const value=product(db,b,existing?.id);
       if(existing) Object.assign(existing,value);else db.products.push(value);
+    }else if(p==='/api/manage/settings'){
+      const zalo=clean(b.zalo);
+      check(!zalo||/^https:\/\/zalo\.me\//i.test(zalo),'Link liên hệ phải bắt đầu bằng https://zalo.me/.');
+      db.settings={...db.settings,zalo};
     }else if(p==='/api/manage/group'){
       const key=clean(b.id,60),name=clean(b.name,100),zalo=clean(b.zalo);
       check(/^[a-z0-9]+(-[a-z0-9]+)*$/.test(key)&&name,'Điền mã cụm và tên hiển thị.');
@@ -317,7 +345,7 @@ export async function handleRequest(req,res){
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','no-referrer');
   res.setHeader('X-Frame-Options','DENY');
-  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; base-uri 'none'; form-action 'self'");
+  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; base-uri 'none'; form-action 'self'");
   try{
     const url=new URL(req.url,'http://localhost');
     if(url.pathname.startsWith('/api/')){
