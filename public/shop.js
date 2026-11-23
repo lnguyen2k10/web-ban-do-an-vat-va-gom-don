@@ -1,11 +1,33 @@
 import {$,esc,money,date,api,pairs,days,rememberOrders} from './common.js';
 const cart=$('#cart'),details=$('#details'), addToast=$('#toast');
+const slides=[
+  {kicker:'LEE’S SHOP · TP. HỒ CHÍ MINH',title:['Ăn vặt hôm nay.','Món ngon cuối tuần.'],text:'Chọn món ăn vặt giao trong ngày hoặc đặt trước món ngon cho bữa cơm cuối tuần.',image:'hero',alt:'Mâm đồ ăn vặt và món ngon Lee’s Shop',target:'#daily',button:'Chọn món ăn vặt'},
+  {kicker:'GIAO TRONG NGÀY',title:['Bữa xế có','món ngon.'],text:'Bánh tráng bơ, cơm cháy chà bông và những món nhâm nhi. Đặt trước 17h, nhận và trả tiền khi giao trong ngày.',image:'com-chay',alt:'Cơm cháy chà bông',target:'#daily',button:'Xem đồ ăn vặt'},
+  {kicker:'CHỐT GOM 17H THỨ NĂM',title:['Đặt trước,','giao cuối tuần.'],text:'Lạp xưởng, chả lụa và món muối chua cho bữa cơm nhà. Lee’s Shop giao theo cụm vào thứ Bảy hoặc Chủ nhật.',image:'lap-xuong',alt:'Lạp xưởng',target:'#weekly',button:'Xem món gom'}
+];
+const slideButtons=[...document.querySelectorAll('[data-slide]')];
+for(const button of slideButtons){
+  button.addEventListener('click',()=>{
+    const slide=slides[Number(button.dataset.slide)];
+    $('#hero-kicker').textContent=slide.kicker;
+    const accent=document.createElement('em');
+    accent.textContent=slide.title[1];
+    $('#hero-title').replaceChildren(slide.title[0],document.createElement('br'),accent);
+    $('#hero-intro').textContent=slide.text;
+    $('#hero-photo').src='/img/'+slide.image+'.jpg';
+    $('#hero-photo').alt=slide.alt;
+    $('#hero-action').href=slide.target;
+    $('#hero-action').textContent=slide.button;
+    for(const tab of slideButtons) tab.setAttribute('aria-pressed',String(tab===button));
+  });
+}
 const groupLink=new URL(location.href).searchParams.get('cum')||'';
 let data,selectedGroup=groupLink, buyer={}, bag;
 try{bag=JSON.parse(localStorage.getItem('lees-cart'))||{};}catch{bag={};}
 const items=()=>data.products.filter(p=>bag[p.id]>0);
 const canBuy=p=>data.schedule[p.kind];
 const price=p=>p.promo??p.price;
+const saleLabel=p=>p.promo!=null?'<span class="sale-label">'+(p.promoEnd?'Ưu đãi đến hết '+date(p.promoEnd):'Giá ưu đãi')+'</span>':'';
 let timer, lastCheckout, showCheckout=false, detailProduct, descriptionPages=[], imageIndex=0, descriptionIndex=0;
 function toast(s){addToast.textContent=s;addToast.hidden=false;clearTimeout(timer);timer=setTimeout(()=>addToast.hidden=true,1600);}
 function save(){
@@ -19,7 +41,7 @@ function increment(id,step){
   save();
 }
 function product(p){
-  return '<article class="card"><button class="image-button" data-detail="'+p.id+'" aria-label="Xem '+esc(p.name)+'"><img loading="lazy" src="'+esc(p.images[0])+'" alt="'+esc(p.name)+'">'+(p.images.length>1?'<span class="photo-count">'+p.images.length+' ảnh</span>':'')+'</button><div class="card-content"><h3>'+esc(p.name)+'</h3><p>'+esc(p.unit)+' · '+esc(p.description)+'</p><div class="price-line"><span class="price">'+money(price(p))+(p.promo==null?'':' <del>'+money(p.price)+'</del>')+'</span><button class="button '+(canBuy(p)?'olive':'outline')+'" data-add="'+p.id+'" '+(canBuy(p)?'':'disabled')+'> '+(canBuy(p)?'Thêm':'Đã chốt')+'</button></div></div></article>';
+  return '<article class="card"><button class="image-button" data-detail="'+p.id+'" aria-label="Xem '+esc(p.name)+'"><img loading="lazy" src="'+esc(p.images[0])+'" alt="'+esc(p.name)+'">'+(p.images.length>1?'<span class="photo-count">'+p.images.length+' ảnh</span>':'')+'</button><div class="card-content"><h3>'+esc(p.name)+'</h3><p>'+esc(p.unit)+' · '+esc(p.description)+'</p>'+saleLabel(p)+'<div class="price-line"><span class="price">'+money(price(p))+(p.promo==null?'':' <del>'+money(p.price)+'</del>')+'</span><button class="button '+(canBuy(p)?'olive':'outline')+'" data-add="'+p.id+'" '+(canBuy(p)?'':'disabled')+'> '+(canBuy(p)?'Thêm':'Đã chốt')+'</button></div></div></article>';
 }
 function render(){
   for(const kind of Object.keys(days)) $('#'+kind+'-grid').innerHTML=data.products.filter(p=>p.kind===kind).map(product).join('')||'<p>Chưa có món đang bán.</p>';
@@ -81,6 +103,7 @@ function renderDetail(){
   const paging=descriptionPages.length>1?`<div class="detail-paging"><button type="button" class="outline" data-desc="-1" ${descriptionIndex===0?'disabled':''}>Trước</button><span>Mô tả ${descriptionIndex+1}/${descriptionPages.length}</span><button type="button" class="outline" data-desc="1" ${descriptionIndex===descriptionPages.length-1?'disabled':''}>Tiếp</button></div>`:'';
   $('#detail-body').innerHTML=`<div class="detail-media"><img class="detail-photo" src="${esc(p.images[imageIndex])}" alt="${esc(p.name)}">${imageOptions}</div>
     <div class="detail-info"><p class="muted">${esc(p.unit)} · ${deliveryText(p.kind)}</p><p class="detail-description">${esc(descriptionPages[descriptionIndex])}</p>${paging}
+    ${saleLabel(p)}
     ${p.youtube?`<a class="video-link" href="${esc(p.youtube)}" target="_blank" rel="noopener noreferrer">Xem video trên YouTube</a>`:''}
     <div class="price-line"><strong class="price">${money(price(p))} ${p.promo==null?'':'<del>'+money(p.price)+'</del>'}</strong><button class="button olive" data-add="${p.id}" ${canBuy(p)?'':'disabled'}>${canBuy(p)?'Thêm vào giỏ':'Đã chốt'}</button></div></div>`;
 }
@@ -178,7 +201,7 @@ cart.addEventListener('submit',async e=>{
   b.disabled=true;message.textContent='';
   buyer=pairs(f);
   try{
-    const payload={...buyer,lines:items().map(p=>({id:p.id,qty:bag[p.id]}))};
+    const payload={...buyer,lines:items().map(p=>({id:p.id,qty:bag[p.id],price:price(p)}))};
     const fingerprint=JSON.stringify(payload);
     if(lastCheckout?.fingerprint!==fingerprint) lastCheckout={fingerprint,key:crypto.randomUUID()};
     const orders=await api('/api/orders',{...payload,requestKey:lastCheckout.key});
@@ -187,6 +210,11 @@ cart.addEventListener('submit',async e=>{
     bag={};buyer={};lastCheckout=null;save();
     $('#cart-title').textContent='Đã nhận đơn';
     $('#cart-body').innerHTML=contact+'<p>Lee’s Shop sẽ xác nhận lịch và phí giao. Hãy giữ link để xem trạng thái.</p>'+orders.map(o=>'<p><a class="button outline" href="/tra-don#'+encodeURIComponent(o.token)+'">Xem '+esc(days[o.kind])+' · '+esc(o.code)+'</a></p>').join('');
-  }catch(err){message.textContent=err.message;b.disabled=false;}
+  }catch(err){
+    if(err.status===409){
+      try { data=await api('/api/catalog');render();cartContent();$('.error',cart).textContent=err.message;return; } catch { /* Keep the current form if refresh fails. */ }
+    }
+    message.textContent=err.message;b.disabled=false;
+  }
 });
 try{data=await api('/api/catalog');render();}catch(e){$('#catalog-error').textContent='Chưa tải được danh mục. Vui lòng thử tải lại trang.';}

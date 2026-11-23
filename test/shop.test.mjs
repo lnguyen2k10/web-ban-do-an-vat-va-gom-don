@@ -6,13 +6,24 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {test} from 'node:test';
-import {calendar,orderUpdate,place,purchasePreview,seed,states} from '../domain.mjs';
+import {activePromo,calendar,orderUpdate,place,purchasePreview,seed,states} from '../domain.mjs';
 
 const thursday='2026-11-19';
 test('Chốt ngày thường và đợt gom theo giờ Việt Nam',()=>{
   assert.deepEqual(calendar(new Date(thursday+'T09:59:59Z')),{date:thursday,daily:true,weekly:true,saturday:'2026-11-21',sunday:'2026-11-22'});
   assert.deepEqual(calendar(new Date(thursday+'T10:00:00Z')),{date:thursday,daily:false,weekly:false,saturday:'2026-11-28',sunday:'2026-11-29'});
   assert.equal(calendar(new Date('2026-11-21T04:00:00Z')).saturday,'2026-11-28');
+});
+test('Ưu đãi tính đến hết ngày Việt Nam và từ chối giá giỏ đã cũ',()=>{
+  const db=seed(), product=db.products[0];
+  Object.assign(product,{promo:19000,promoStart:'2026-11-19',promoEnd:'2026-11-19'});
+  assert.equal(activePromo(product,'2026-11-18'),null);
+  assert.equal(activePromo(product,'2026-11-19'),19000);
+  assert.equal(activePromo(product,'2026-11-20'),null);
+  const input={name:'Khách thử',phone:'0901234567',address:'Địa chỉ',group:db.groups[0].id,
+    lines:[{id:product.id,qty:1,price:19000}]};
+  assert.equal(place(db,input,'web',new Date('2026-11-19T09:00:00Z'))[0].lines[0].price,19000);
+  assert.throws(()=>place(db,input,'web',new Date('2026-11-20T01:00:00Z')),err=>err.status===409);
 });
 test('Tách lịch, nối hồ sơ theo điện thoại và gom từng cụm',()=>{
   const db=seed(), [daily,,weekly]=db.products, now=new Date(thursday+'T09:10:00Z');
@@ -57,7 +68,8 @@ test('Máy chủ lưu đơn, kiểm soát vai trò và tính báo cáo',async t=
   const template=await fetch(base+'/api/manage/template',{headers:{cookie}});
   const workbook=new ExcelJS.Workbook();
   await workbook.xlsx.load(await template.arrayBuffer());
-  workbook.worksheets[0].addRow(['TEST-XLSX','Món nhập Excel','1 gói','weekly',34000,'',25000,'mau','Mô tả','/img/lap-xuong.jpg']);
+    workbook.worksheets[0].addRow(['TEST-XLSX','Món nhập Excel','1 gói','Món gom',34000,29000,25000,'mau','Mô tả','/img/lap-xuong.jpg','','','','','','2026-11-19','2026-11-22']);
+  workbook.worksheets[0].addRow(['TEST-DAILY','Món ăn vặt Excel','1 phần','Ăn vặt',17000,'',8000,'mau','Mô tả','/img/com-chay.jpg']);
   const xlsx=Buffer.from(await workbook.xlsx.writeBuffer());
   const upload=path=>fetch(base+path,{method:'POST',headers:{cookie,'Content-Type':'application/octet-stream'},body:xlsx});
   const preview=await (await upload('/api/manage/import')).json();
@@ -67,6 +79,10 @@ test('Máy chủ lưu đơn, kiểm soát vai trò và tính báo cáo',async t=
   assert.equal((await upload('/api/manage/import?apply=1')).status,200);
   assert.equal((await upload('/api/manage/import?apply=1')).status,400);
   assert.equal((await call('/api/catalog')).body.products.filter(p=>p.sku==='TEST-XLSX').length,1);
+  assert.equal((await call('/api/catalog')).body.products.find(p=>p.sku==='TEST-DAILY').kind,'daily');
+  assert.equal((await upload('/api/manage/import?apply=1&update=1')).status,200);
+  const imported=(await call('/api/manage')).body.products.find(p=>p.sku==='TEST-XLSX');
+  assert.deepEqual([imported.kind,imported.promoStart,imported.promoEnd],['weekly','2026-11-19','2026-11-22']);
   const image=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64');
   const product={name:'Ảnh kiểm thử',sku:'TEST-IMG',unit:'gói',kind:'daily',price:1000,cost:500,supplier:'mau',
     images:['data:image/png;base64,'+image.toString('base64')],active:true};

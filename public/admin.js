@@ -68,13 +68,14 @@ function manual(){
 }
 function products(){
   return '<div class="actions">'+button('Thêm sản phẩm','product','',true)+button('Nhập Excel','import')+'<a class="button outline" href="/api/manage/template">Tải Excel mẫu</a></div>'+
-    table(['Ảnh','Món','Nhóm','Giá thường / ưu đãi','Nhà cung cấp','Thao tác'],data.products.map(p=>['<img class="photo-preview" alt="" src="'+esc(p.images[0])+'">',esc(p.name)+'<br>'+esc(p.sku)+(p.active?'':' · Ẩn'),days[p.kind],money(p.price)+(p.promo==null?'':' / '+money(p.promo)),esc(get('suppliers',p.supplier)?.name),button('Sửa','product',p.id)+' '+button('Nhân bản','copy',p.id)]));
+    table(['Ảnh','Món','Nhóm','Giá thường / ưu đãi','Nhà cung cấp','Thao tác'],data.products.map(p=>['<img class="photo-preview" alt="" src="'+esc(p.images[0])+'">',esc(p.name)+'<br>'+esc(p.sku)+(p.active?'':' · Ẩn'),days[p.kind],money(p.price)+(p.promo==null?'':' / '+money(p.promo)+'<br><small>'+esc(p.promoStart?date(p.promoStart):'Có hiệu lực ngay')+(p.promoEnd?' – '+esc(date(p.promoEnd)):'')+'</small>'),esc(get('suppliers',p.supplier)?.name),button('Sửa','product',p.id)+' '+button('Nhân bản','copy',p.id)]));
 }
 function productEditor(p,copy){
   const value=p||{};
   edit(copy?'Nhân bản sản phẩm':p?'Sửa sản phẩm':'Thêm sản phẩm',form('<input type="hidden" name="id" value="'+(copy?'':esc(value.id))+'"><div class="fields">'+
     field('Tên món','name',value.name,'text','required')+field('Mã SKU','sku',copy?'':value.sku,'text','required')+field('Quy cách','unit',value.unit,'text','required')+
     select('Nhóm món','kind',Object.entries(days),value.kind||'daily')+field('Giá bán','price',value.price,'number',num+' required')+field('Giá ưu đãi','promo',value.promo,'number',num)+field('Giá vốn','cost',value.cost,'number',num+' required')+
+    field('Ưu đãi từ ngày','promoStart',value.promoStart,'date')+field('Ưu đãi đến hết ngày','promoEnd',value.promoEnd,'date')+
     select('Nhà cung cấp','supplier',links(data.suppliers),value.supplier||'mau')+'</div><label>Mô tả<textarea name="description" maxlength="1200">'+esc(value.description)+'</textarea></label>'+
     '<p class="muted">Thêm tối đa 5 ảnh JPG, PNG hoặc WebP. Ảnh đầu tiên làm ảnh đại diện. Ảnh lớn được thu nhỏ tự động.</p>'+
     photoSlots.map(i=>'<div class="fields">'+field('Ảnh '+(i+1)+' · URL HTTPS','image'+i,value.images?.[i]?.startsWith('/api/photo?')?'':value.images?.[i],'text')+
@@ -94,7 +95,7 @@ function supplierEditor(s={}){
     field('Số liên hệ','phone',s.phone,'tel')+field('Địa chỉ','address',s.address)+submit(),'supplier'));
 }
 function importEditor(){
-  edit('Nhập sản phẩm từ Excel',form('<p>Dùng giá trị <code>daily</code> hoặc <code>weekly</code> cho nhóm món. Cột <code>supplier</code> dùng mã nhà cung cấp trong trang quản trị.</p><label>Tệp .xlsx<input type="file" name="file" accept=".xlsx" required></label>'+submit('Xem trước'),'import')+'<div id="import-results"></div>');
+  edit('Nhập sản phẩm từ Excel',form('<p>Điền <code>daily</code> hoặc <strong>Ăn vặt</strong> cho món giao trong ngày, <code>weekly</code> hoặc <strong>Món gom</strong> cho món giao cuối tuần. Có thể nhập chung hai nhóm trong một file. Cột <code>supplier</code> dùng mã nhà cung cấp. Ngày ưu đãi theo mẫu YYYY-MM-DD.</p><label>Tệp .xlsx<input type="file" name="file" accept=".xlsx" required></label>'+checkbox('Cập nhật món đã có theo mã SKU', 'update', false)+submit('Xem trước'),'import')+'<div id="import-results"></div>');
 }
 function purchaseForm(){
   const chosen=purchaseWeek||data.schedule.saturday;
@@ -261,12 +262,14 @@ document.addEventListener('submit',async e=>{
       const p=get('purchases',v.id);
       await api('/api/manage/purchase/update',{id:v.id,paid:v.paid,received:p.rows.map((_,i)=>v['r'+i])});
     }else if(action==='import'){
-      const result=await api('/api/manage/import',v.file);
+      const mode=v.update?'1':'0';
+      const result=await api('/api/manage/import?update='+mode,v.file);
+      dialog.importMode=mode;
       dialog.importFile=v.file;
-      $('#import-results').innerHTML='<p>'+result.result.length+' dòng hợp lệ · '+result.errors.length+' dòng cần sửa.</p>'+table(['SKU','Tên món'],result.result.map(p=>[esc(p.sku),esc(p.name)]))+
+      $('#import-results').innerHTML='<p>'+result.result.length+' dòng hợp lệ · '+result.errors.length+' dòng cần sửa.</p>'+table(['SKU','Tên món','Thao tác'],result.result.map(p=>[esc(p.sku),esc(p.name),esc(p.action)]))+
         (result.errors.length?table(['Dòng','Lỗi'],result.errors.map(x=>[x.row,esc(x.message)])):form(submit('Xác nhận nhập'),'apply-import'));
       return;
-    }else if(action==='apply-import'){await api('/api/manage/import?apply=1',dialog.importFile);}
+    }else if(action==='apply-import'){await api('/api/manage/import?apply=1&update='+dialog.importMode,dialog.importFile);}
     else await api('/api/manage/'+action,v);
     if(dialog.open)dialog.close();
     await refresh();message('Đã lưu.',false);

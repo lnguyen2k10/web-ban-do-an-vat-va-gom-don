@@ -5,7 +5,7 @@ import {extname} from 'node:path';
 import ExcelJS from 'exceljs';
 import QRCode from 'qrcode';
 import { waitUntil } from '@vercel/functions';
-import {amount,calendar,check,clean,id,orderUpdate,paid,place,publicOrder,purchasePreview,seed,states,total} from './domain.mjs';
+import {activePromo,amount,calendar,check,clean,id,orderUpdate,paid,place,publicOrder,purchasePreview,seed,states,total} from './domain.mjs';
 
 import {initShop,loadShop,openStorage,writeShop} from './db/storage.mjs';
 
@@ -97,11 +97,15 @@ function product(db,b,editing){
   check(name&&sku&&unit&&['daily','weekly'].includes(b.kind),'Điền mã, tên, quy cách và nhóm món.');
   check(!db.products.some(p=>p.sku===sku&&p.id!==editing),'Mã sản phẩm đã tồn tại.');
   check(price>0&&(promo===null||promo<price),'Giá ưu đãi phải thấp hơn giá bán.');
+  const promoStart=clean(b.promoStart,30),promoEnd=clean(b.promoEnd,30);
+  check((!promoStart||validDate(promoStart))&&(!promoEnd||validDate(promoEnd)),'Ngày ưu đãi phải theo định dạng YYYY-MM-DD.');
+  check(!promoStart||!promoEnd||promoStart<=promoEnd,'Ngày kết thúc phải từ ngày bắt đầu trở đi.');
+  check(promo!==null||(!promoStart&&!promoEnd),'Nhập giá ưu đãi khi cài lịch ưu đãi.');
   check(images.length>=1&&images.length<=5&&images.reduce((size,image)=>size+(typeof image==='string'?image.length:0),0)<=3250000&&images.every(v=>typeof v==='string'&&v.length<=900000&&photo(v)),'Cần 1–5 ảnh JPG, PNG, WebP hoặc link HTTPS. Tổng dung lượng ảnh lưu tối đa khoảng 2,4 MB.');
   check(db.suppliers.some(s=>s.id===b.supplier),'Chọn nhà cung cấp.');
-  return {id:editing||id(),sku,name,unit,kind:b.kind,price,cost,promo,description:clean(b.description,1200),images,youtube:youtubeLink(b.youtube),supplier:b.supplier,active:b.active!==false};
+  return {id:editing||id(),sku,name,unit,kind:b.kind,price,cost,promo,promoStart,promoEnd,description:clean(b.description,1200),images,youtube:youtubeLink(b.youtube),supplier:b.supplier,active:b.active!==false};
 }
-const excelKeys=['sku','name','unit','kind','price','promo','cost','supplier','description','image1','image2','image3','image4','image5','youtube'];
+const excelKeys=['sku','name','unit','kind','price','promo','cost','supplier','description','image1','image2','image3','image4','image5','youtube','promoStart','promoEnd'];
 async function parseExcel(req){
   const book=new ExcelJS.Workbook();
   try{await book.xlsx.load(await body(req));}catch(e){if(e.status) throw e;check(false,'Không đọc được tệp XLSX.');}
@@ -110,20 +114,35 @@ async function parseExcel(req){
   const headings=sheet.getRow(1);
   check(excelKeys.slice(0,12).every((k,i)=>headings.getCell(i+1).text.trim()===k)&&
     excelKeys.slice(12).every((k,i)=>['',k].includes(headings.getCell(i+13).text.trim())),'Dùng đúng các cột trong tệp Excel mẫu.');
+  const columnNames=excelKeys.filter((k,i)=>headings.getCell(i+1).text.trim()===k);
   const rows=[];
   sheet.eachRow((r,i)=>{
     if(i===1) return;
-    const data=Object.fromEntries(excelKeys.map((k,j)=>[k,r.getCell(j+1).text.trim()]));
+    const data=Object.fromEntries(columnNames.map(k=>{
+      const cell=r.getCell(excelKeys.indexOf(k)+1);
+      const value=cell.value instanceof Date?cell.value.toISOString().slice(0,10):cell.hyperlink||cell.text.trim();
+      return [k,value];
+    }));
     if(Object.values(data).some(Boolean)) rows.push({i,...data,images:[data.image1,data.image2,data.image3,data.image4,data.image5].filter(Boolean)});
   });
   check(rows.length>0,'Tệp chưa có sản phẩm.');
   return rows;
 }
-function importRows(db,rows){
-  const result=[], errors=[];
+function importRows(db,rows,update) {
+  const result=[], errors=[], seen=new Set();
   for(const b of rows){
-    try{const p=product(db,b);db.products.push(p);result.push({sku:p.sku,name:p.name});}
-    catch(e){errors.push({row:b.i,message:e.message});}
+    try{
+      const sku=clean(b.sku,40).toUpperCase();
+      check(!seen.has(sku),'Mã SKU bị lặp trong Excel.');
+      seen.add(sku);
+      const existing=update?db.products.find(p=>p.sku===sku):undefined;
+      const kind=clean(b.kind).toLowerCase();
+      const options={...existing,...b,kind:['ăn vặt','an vat'].includes(kind)?'daily':['món gom','mon gom','đặt gom','dat gom'].includes(kind)?'weekly':kind};
+      if(existing&&!b.images.length) options.images=existing.images;
+      const p=product(db,options,existing?.id);
+      if(existing) Object.assign(existing,p); else db.products.push(p);
+      result.push({sku:p.sku,name:p.name,action:existing?'Cập nhật':'Thêm mới'});
+    }catch(e){errors.push({row:b.i,message:e.message});}
   }
   return {result,errors};
 }
@@ -208,8 +227,12 @@ async function api(req,res,url){
     return res.end(Buffer.from(match[2],'base64'));
   }
   if(m==='GET'&&p==='/api/catalog'&&process.env.VERCEL) dispatchNotifications();
-  if(m==='GET'&&p==='/api/catalog') return send(res,{schedule:calendar(),products:db.products.filter(p=>p.active).map(({cost,supplier,...p})=>({...p,images:photoList(p)})),
-    groups:db.groups.filter(g=>g.active).map(({hub,...g})=>g),zalo:db.settings?.zalo??process.env.ZALO_URL??''});
+  if(m==='GET'&&p==='/api/catalog'){
+    const schedule=calendar();
+    return send(res,{schedule,products:db.products.filter(p=>p.active)
+      .map(({cost,supplier,...p})=>({...p,promo:activePromo(p,schedule.date),images:photoList(p)})),
+      groups:db.groups.filter(g=>g.active).map(({hub,...g})=>g),zalo:db.settings?.zalo??process.env.ZALO_URL??''});
+  }
   if(m==='POST'&&p==='/api/orders'){
     limit('order:'+rates(req),40);
     const b=await json(req);
@@ -291,13 +314,25 @@ async function api(req,res,url){
     const book=new ExcelJS.Workbook(), sheet=book.addWorksheet('Sản phẩm');
     sheet.addRow(excelKeys);
     sheet.columns.forEach(c=>c.width=23);
+    const guide=book.addWorksheet('Hướng dẫn');
+    guide.addRows([
+      ['Cột','Cách điền'],['kind','daily hoặc Ăn vặt • weekly hoặc Món gom'],
+      ['price / promo / cost','Giá bán / giá ưu đãi / giá vốn, điền số nguyên VND.'],
+      ['promoStart / promoEnd','Ngày Việt Nam, YYYY-MM-DD. Ưu đãi tính hết ngày kết thúc.'],
+      ['supplier','Mã nhà cung cấp trong trang Quản trị.'],
+      ['image1–image5 / youtube','Link ảnh HTTPS hoặc link video YouTube.'],
+      ['sku','Mỗi món dùng một mã riêng. Có thể bật cập nhật theo SKU khi nhập.']
+    ]);
+    guide.getColumn(1).width=28;
+    guide.getColumn(2).width=88;
     res.writeHead(200,{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Disposition':'attachment; filename="lees-shop-san-pham.xlsx"'});
     return res.end(Buffer.from(await book.xlsx.writeBuffer()));
   }
   if(p==='/api/manage/import'&&m==='POST'){
     const rows=await parseExcel(req);
-    if(q.get('apply')!=='1') return send(res,importRows(db,rows));
-    return send(res,await write(db=>{const out=importRows(db,rows);check(!out.errors.length,'Tệp có dòng lỗi. Hãy xem trước và sửa rồi nhập lại.');return out;}));
+    const update=q.get('update')==='1';
+    if(q.get('apply')!=='1') return send(res,importRows(db,rows,update));
+    return send(res,await write(db=>{const out=importRows(db,rows,update);check(!out.errors.length,'Tệp có dòng lỗi. Hãy xem trước và sửa rồi nhập lại.');return out;}));
   }
   if(p==='/api/manage/purchases/preview'&&m==='GET') return send(res,purchasePreview(db,q.get('week')));
   check(m==='POST','Không tìm thấy chức năng.',404);

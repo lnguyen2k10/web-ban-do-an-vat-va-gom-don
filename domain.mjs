@@ -46,6 +46,12 @@ export const paid = o => o.payments.reduce((sum,p)=>sum+p.amount,0);
 export function event(o, message, actor, now=new Date()) {
   o.events.push({at:now.toISOString(),message,actor});
 }
+export function activePromo(product, date) {
+  if(product.promo==null) return null;
+  if(product.promoStart&&date<product.promoStart) return null;
+  if(product.promoEnd&&date>product.promoEnd) return null;
+  return product.promo;
+}
 export function place(db, input, actor, now = new Date()) {
   const name = clean(input.name,90), address = clean(input.address), number = phone(input.phone);
   const group = db.groups.find(g=>g.id===input.group&&g.active);
@@ -58,7 +64,9 @@ export function place(db, input, actor, now = new Date()) {
     const qty=amount(l.qty,99);
     check(p&&qty>0,'Có món đã ngừng bán hoặc số lượng không hợp lệ.');
     if(actor==='web') check(schedule[p.kind],p.kind==='daily'?'Đồ ăn vặt chỉ nhận trước 17h mỗi ngày.':'Đơn gom nhận từ thứ Hai đến trước 17h thứ Năm.');
-    return {id:p.id,name:p.name,unit:p.unit,kind:p.kind,price:p.promo??p.price,cost:p.cost,supplier:p.supplier,qty};
+    const price=activePromo(p,schedule.date)??p.price;
+    if(actor==='web'&&l.price!==undefined) check(l.price===price,'Giá món đã thay đổi. Kiểm tra tổng tiền rồi gửi lại.',409);
+    return {id:p.id,name:p.name,unit:p.unit,kind:p.kind,price,cost:p.cost,supplier:p.supplier,qty};
   });
   let customer=db.customers.find(c=>c.phone===number);
   if(!customer) {

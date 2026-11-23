@@ -9,7 +9,22 @@
 <body>
 <header class="top" id="top"><div class="wrap nav"><a class="brand" href="/">Lee’s<span> Shop</span><small>ĂN VẶT & MÓN GOM</small></a><nav aria-label="Điều hướng"><a href="#daily">Ăn vặt</a><a href="#weekly">Món gom</a><a href="#delivery">Lịch giao</a><a href="#groups">Khu vực</a><a href="/tra-don">Tra đơn</a></nav><button id="cart-button" class="button olive">Giỏ hàng <span id="count">0</span></button></div></header>
 <main>
-<section class="hero wrap"><div class="hero-copy"><p class="eyebrow">LEE’S SHOP · TP. HỒ CHÍ MINH</p><h1>Ăn vặt hôm nay.<br><em>Món ngon cuối tuần.</em></h1><p class="intro">Đặt món ăn vặt để nhận trong ngày, hoặc gom lạp xưởng, chả lụa và món muối chua cho bữa cơm cuối tuần.</p><div class="actions"><a href="#daily" class="button olive">Chọn món ăn vặt</a><a href="#weekly" class="button outline">Xem món gom</a></div></div><img class="hero-img" src="/img/hero.jpg" alt="Mâm đồ ăn vặt và món ngon của Lee’s Shop"></section>
+<section class="hero-shell wrap" aria-label="Món nổi bật">
+  <div class="hero-slide" id="hero-slide">
+    <div class="hero-copy">
+      <p class="eyebrow" id="hero-kicker">LEE’S SHOP · TP. HỒ CHÍ MINH</p>
+      <h1 id="hero-title">Ăn vặt hôm nay.<br><em>Món ngon cuối tuần.</em></h1>
+      <p class="intro" id="hero-intro">Đặt món ăn vặt để nhận trong ngày, hoặc gom lạp xưởng, chả lụa và món muối chua cho bữa cơm cuối tuần.</p>
+      <div class="actions"><a href="#daily" id="hero-action" class="button olive">Chọn món ăn vặt</a><a href="#delivery" class="button outline">Xem lịch giao</a></div>
+    </div>
+    <img class="hero-img" id="hero-photo" src="/img/hero.jpg" alt="Mâm đồ ăn vặt và món ngon của Lee’s Shop" fetchpriority="high">
+  </div>
+  <div class="hero-tabs" aria-label="Chọn nội dung nổi bật">
+    <button type="button" data-slide="0" aria-pressed="true">Lee’s Shop</button>
+    <button type="button" data-slide="1" aria-pressed="false">Ăn vặt trong ngày</button>
+    <button type="button" data-slide="2" aria-pressed="false">Món gom cuối tuần</button>
+  </div>
+</section>
 <div class="schedule" id="delivery"><div class="wrap schedules"><div><span class="tag">GIAO TRONG NGÀY</span><strong>Ăn vặt</strong><p>Nhận đơn trước <b>17h mỗi ngày</b>. Giao và thu tiền trong ngày.</p><p id="daily-delivery"></p></div><div><span class="tag">GIAO CUỐI TUẦN</span><strong>Món gom</strong><p>Nhận đơn từ <b>thứ Hai đến 17h thứ Năm</b>. Giao thứ Bảy hoặc Chủ nhật theo cụm. Shop xác nhận ngày giao sau khi chốt đơn.</p><p id="weekly-delivery"></p></div></div></div>
 <div class="wrap catalog"><p id="catalog-error" role="alert"></p>
 <section id="daily"><header class="section-title"><div><p class="eyebrow">GIAO TRONG NGÀY</p><h2>Đồ ăn vặt</h2></div><p id="daily-window"></p></header><div id="daily-grid" class="cards"></div></section>
