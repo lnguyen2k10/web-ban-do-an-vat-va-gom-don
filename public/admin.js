@@ -3,9 +3,9 @@ const categorySuggestions=['Đồ khô','Hải sản cấp đông','Đồ nguộ
 const photoSlots=[0,1,2,3,4];
 const statuses=['Chờ xác nhận','Đã xác nhận','Đang soạn','Đã soạn','Đang giao','Đã giao','Giao chưa thành công','Đã hủy'];
 const roles={admin:'Quản trị',staff:'Soạn hàng',courier:'Giao hàng'};
-const sections={orders:'Đơn hàng',customers:'Khách hàng',products:'Sản phẩm',groups:'Cụm giao',suppliers:'Nhà cung cấp',purchases:'Gom hàng',report:'Báo cáo',market:'So sánh giá',users:'Tài khoản'};
+const sections={orders:'Đơn hàng',customers:'Khách hàng',products:'Sản phẩm',groups:'Cụm giao',suppliers:'Nhà cung cấp',purchases:'Gom hàng',report:'Báo cáo',market:'So sánh giá',marketGuide:'Bảng giá thị trường',users:'Tài khoản'};
 const dialog=$('#editor'),view=$('#view'),status=$('#status');
-let data,tab='orders',renderID=0,filters={},purchaseWeek='',reportFilters={};
+let data,tab=location.hash==='#bang-gia'?'marketGuide':'orders',renderID=0,filters={},purchaseWeek='',reportFilters={};
 const button=(text,action,value='',primary=false)=>'<button type="button" class="button '+(primary?'olive':'outline')+'" data-do="'+action+'" data-id="'+esc(value)+'">'+esc(text)+'</button>';
 const opts=(items,selected)=>items.map(([v,label])=>'<option value="'+esc(v)+'" '+(v===selected?'selected':'')+'>'+esc(label)+'</option>').join('');
 const field=(label,name,value='',type='text',more='')=>'<label>'+label+'<input name="'+name+'" type="'+type+'" value="'+esc(value)+'" '+more+'></label>';
@@ -186,10 +186,28 @@ function marketEditor(p){
     field('Phí giao (₫) · bỏ trống nếu chưa biết','shipping','','number',num)+'</div>'+
     field('Link nguồn','link','','url')+field('Ghi chú về cỡ, cách chế biến hoặc điều kiện sỉ','note')+submit(),'market-quote'));
 }
+let guideFilters={group:'',search:''};
+function marketGuideView(){
+  const {rows,observed}=data.marketGuide;
+  const groups=[...new Set(rows.map(r=>r.group))];
+  const normalize=value=>String(value).toLocaleLowerCase('vi').normalize('NFD').replace(/\p{Diacritic}/gu,'').replace(/đ/g,'d');
+  const visible=rows.filter(r=>(!guideFilters.group||guideFilters.group===r.group)&&normalize(r.name).includes(normalize(guideFilters.search).trim()));
+  const shop=new Map(data.products.map(p=>[p.sku,p]));
+  return '<section class="guide"><h2>Bảng giá thị trường</h2><p>'+rows.length+' món · Ghi nhận '+date(observed)+' · Giá theo quy cách dưới đây, chưa tính phí giao.</p>'+
+    '<form class="filters" data-form="guide-filter">'+field('Tìm món','search',guideFilters.search,'search')+select('Nhóm','group',[['','Tất cả'],...groups.map(g=>[g,g])],guideFilters.group)+submit('Lọc')+'</form>'+
+    '<p class="muted">Giá đề xuất là giá thử. Kiểm tra giá vốn trước khi chốt. Nguồn khác công thức, cỡ hoặc có ưu đãi được ghi chú từng dòng.</p>'+
+    '<div class="guide-list">'+visible.map(r=>{
+      const p=shop.get(r.sku);
+      return '<article class="panel guide-card"><div><span class="guide-group">'+esc(r.group)+' · '+esc(r.unit)+'</span><h3>'+esc(r.name)+'</h3>'+
+        (p?'<p class="muted">Lee’s Shop đang '+money(p.price)+' · Giá vốn '+money(p.cost)+'</p>':'')+'</div>'+
+        '<div class="guide-sources"><strong>Giá tham chiếu</strong>'+r.quotes.map(q=>'<div><a href="'+esc(q.url)+'" target="_blank" rel="noopener noreferrer">'+esc(q.name)+'</a> · '+money(q.price)+(q.note?'<small>'+esc(q.note)+'</small>':'')+'</div>').join('')+'</div>'+
+        '<div class="guide-proposed"><strong>Giá lẻ đề xuất</strong><span>'+money(r.proposed)+'</span>'+(r.note?'<small>'+esc(r.note)+'</small>':'')+'</div></article>';
+    }).join('')+(visible.length?'':'<p>Không có món phù hợp bộ lọc.</p>')+'</div></section>';
+}
 function page(){
   const current=++renderID;
   const views={
-    orders:orderList,products, purchases:purchaseForm,report:reports,market:marketView,
+    orders:orderList,products, purchases:purchaseForm,report:reports,market:marketView,marketGuide:marketGuideView,
     customers:()=>table(['Khách','Số điện thoại','Địa chỉ mới nhất','Đơn đặt','Thao tác'],data.customers.map(c=>[esc(c.name),esc(c.phone),esc(c.address),data.orders.filter(o=>o.customer===c.id).length,button('Lịch sử','customer',c.id)])),
     groups:()=>button('Thêm cụm','group','',true)+' '+button('Zalo cửa hàng','settings')+table(['Tên / Mã','Phạm vi','Điểm tập kết','Phí giao','Thao tác'],data.groups.map(g=>[esc(g.name)+'<br>'+esc(g.id)+(g.active?'':' · Tạm đóng'),esc(g.area),esc(g.hub)||'Chưa cấu hình',g.fee==null?'Báo sau':money(g.fee),button('Sửa','group',g.id)+' '+button('QR & link','qr',g.id)])),
     suppliers:()=>button('Thêm nhà cung cấp','supplier','',true)+table(['Tên','Mã nhập Excel','Liên hệ','Địa chỉ','Thao tác'],data.suppliers.map(s=>[esc(s.name),'<code>'+esc(s.id)+'</code>',esc(s.phone),esc(s.address),button('Sửa','supplier',s.id)])),
@@ -224,7 +242,7 @@ document.addEventListener('click',async e=>{
   if(!b)return;
   const {do:action,id}=b.dataset;
   message('');
-  if(action==='tab'){tab=id;page();}
+  if(action==='tab'){tab=id;history.replaceState(null,'',tab==='marketGuide'?'#bang-gia':location.pathname);page();}
   if(action==='refresh')await refresh();
   if(action==='order')orderEditor(get('orders',id));
   if(action==='manual')manual();
@@ -289,6 +307,7 @@ document.addEventListener('submit',async e=>{
   const b=e.submitter,error=$('.error',f),v=pairs(f);
   b.disabled=true;if(error)error.textContent='';
   try{
+    if(action==='guide-filter'){guideFilters=v;page();return;}
     if(action==='market-filter'){marketProduct=v.product;page();return;}
     if(action==='filters'){filters={...v,customer:filters.customer};page();return;}
     if(action==='report'){reportFilters=v;await loadReport();return;}

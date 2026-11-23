@@ -152,10 +152,15 @@ function renderDetail(){
   const imageOptions=p.images.length>1?`<div class="detail-images" aria-label="Ảnh sản phẩm">${p.images.map((x,i)=>`<button type="button" class="outline" aria-label="Xem ảnh ${i+1}" aria-pressed="${i===imageIndex}" data-image="${i}"><img src="${esc(x)}" alt=""></button>`).join('')}</div>`:'';
   const paging=descriptionPages.length>1?`<div class="detail-paging"><button type="button" class="outline" data-desc="-1" ${descriptionIndex===0?'disabled':''}>Trước</button><span>Mô tả ${descriptionIndex+1}/${descriptionPages.length}</span><button type="button" class="outline" data-desc="1" ${descriptionIndex===descriptionPages.length-1?'disabled':''}>Tiếp</button></div>`:'';
   $('#detail-body').innerHTML=`<div class="detail-media">${photoMarkup(p,imageIndex,true)}${imageOptions}</div>
-    <div class="detail-info"><p class="muted">${esc(p.unit)} · ${deliveryText(p.kind)}</p><p class="detail-description">${esc(descriptionPages[descriptionIndex])}</p>${paging}
+    <div class="detail-info">
+    <div class="detail-category">${esc(p.category||days[p.kind])}</div>
+    <h2 id="detail-title">${esc(p.name)}</h2>
+    <div class="detail-price"><strong class="price">${money(price(p))}</strong>${p.promo==null?'':'<del>'+money(p.price)+'</del>'}<span>/ ${esc(p.unit)}</span></div>
+    <div class="detail-delivery"><strong>${p.kind==='weekly'?'Giao cuối tuần':'Giao trong ngày'}</strong><span>${deliveryText(p.kind)}</span></div>
+    <p class="detail-description">${esc(descriptionPages[descriptionIndex])}</p>${paging}
     ${saleLabel(p)}
     ${p.youtube?`<a class="video-link" href="${esc(p.youtube)}" target="_blank" rel="noopener noreferrer">Xem video trên YouTube</a>`:''}
-    <div class="price-line"><strong class="price">${money(price(p))} ${p.promo==null?'':'<del>'+money(p.price)+'</del>'}</strong><button class="button olive" data-add="${p.id}" ${canBuy(p)?'':'disabled'}>${canBuy(p)?'Thêm vào giỏ':'Đã chốt'}</button></div></div>`;
+    <div class="detail-action"><button class="button olive" data-add="${p.id}" ${canBuy(p)?'':'disabled'}>${canBuy(p)?'Thêm vào giỏ':'Đã chốt'}</button></div></div>`;
 }
 function openCart(step=false){
   showCheckout=step;
@@ -192,7 +197,6 @@ document.addEventListener('click',e=>{
     detailProduct=data.products.find(p=>p.id===b.dataset.detail);
     descriptionPages=detailProduct.description.match(/.{1,135}(?:\s|$)|.{1,135}/gs)?.map(s=>s.trim())||[''];
     imageIndex=descriptionIndex=0;
-    $('#detail-title').textContent=detailProduct.name;
     renderDetail();
     details.showModal();
   }

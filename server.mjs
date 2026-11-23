@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {extname} from 'node:path';
 import ExcelJS from 'exceljs';
 import QRCode from 'qrcode';
+import {marketGuide} from './market-guide.mjs';
 import { waitUntil } from '@vercel/functions';
 import {activePromo,amount,calendar,categoryOf,check,clean,id,orderUpdate,paid,place,publicOrder,purchasePreview,seed,states,total} from './domain.mjs';
 
@@ -286,7 +287,7 @@ async function api(req,res,url){
       const {id,code,name,date,delivery,week,groupName,status,kind}=o;
       return {id,code,name,date,delivery,week,groupName,status,kind,...(user.role==='courier'?{phone:o.phone,address:o.address,due:total(o)-paid(o)}:{lines:o.lines.map(({name,unit,qty})=>({name,unit,qty}))})};
     });
-    return send(res,{user:safeUser(user),orders,...(user.role==='admin'?{products:db.products.map(p=>({...p,category:categoryOf(p),images:photoList(p)})),groups:db.groups,suppliers:db.suppliers,users:db.users.map(safeUser),customers:db.customers,marketQuotes:db.marketQuotes||[],settings:{zalo:db.settings?.zalo??process.env.ZALO_URL??''},purchases:db.purchases,expenses:db.expenses}:{}),schedule:calendar()});
+    return send(res,{user:safeUser(user),orders,...(user.role==='admin'?{products:db.products.map(p=>({...p,category:categoryOf(p),images:photoList(p)})),groups:db.groups,suppliers:db.suppliers,users:db.users.map(safeUser),customers:db.customers,marketQuotes:db.marketQuotes||[],marketGuide,settings:{zalo:db.settings?.zalo??process.env.ZALO_URL??''},purchases:db.purchases,expenses:db.expenses}:{}),schedule:calendar()});
   }
   if(p.startsWith('/api/manage/order/')&&m==='PATCH'){
     const b=await json(req);

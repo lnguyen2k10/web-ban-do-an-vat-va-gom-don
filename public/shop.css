@@ -94,3 +94,40 @@ input,select,textarea{display:block;width:100%;background:#fff;color:var(--ink);
 
 .missing-photo{display:grid;place-items:center;width:100%;aspect-ratio:1.45;background:var(--pale);color:var(--olive);font-size:.86rem}
 .missing-photo.detail-photo{aspect-ratio:auto}
+
+#details{width:min(940px,calc(100% - 1rem));padding:0;background:#fffdf7;position:fixed;border:0;box-shadow:0 20px 80px #18221850}
+#details .detail-close{position:absolute;right:.7rem;top:.7rem;z-index:2;background:#fffdf7;min-width:38px;min-height:38px;box-shadow:0 1px 6px #26322520}
+#detail-body{gap:0}
+#details .detail-media{background:#edf0e6}
+#details img.detail-photo{height:clamp(330px,56dvh,495px);object-fit:cover;border-radius:0;object-position:center 57%}
+#details .missing-photo.detail-photo{height:320px}
+#details .detail-images{justify-content:flex-start;gap:8px;padding:9px 12px;margin:0}
+#details .detail-images img{width:42px;height:42px}
+#details .detail-info{padding:clamp(1.1rem,3vw,2.2rem);align-self:center}
+#details h2{font-size:clamp(1.4rem,3vw,2.2rem);margin:.2rem 2rem .6rem 0;line-height:1.12}
+.detail-category{font-size:.76rem;font-weight:700;color:var(--olive);letter-spacing:.06em;text-transform:uppercase}
+.detail-price{display:flex;flex-wrap:wrap;align-items:baseline;gap:.32rem .5rem;margin-bottom:.7rem}
+.detail-price strong{font-size:clamp(1.32rem,2.5vw,1.9rem);line-height:1.25}
+.detail-price span,.detail-price del{color:var(--sub);font-size:.85rem}
+.detail-delivery{background:#eff2e8;border-radius:9px;padding:.48rem .62rem;margin-bottom:.62rem;font-size:.88rem}
+.detail-delivery strong,.detail-delivery span{display:block}
+.detail-action{margin-top:.72rem}
+.detail-action button{width:100%}
+@media(max-width:540px){
+  #details img.detail-photo,#details .missing-photo.detail-photo{height:clamp(132px,32dvh,235px)}
+  #details .detail-info{padding:.75rem .85rem}
+  #details h2{margin:.15rem 0 .33rem}
+  #details .detail-images{padding:5px 8px}
+  #details .detail-images img{width:29px;height:29px}
+  .detail-price{margin-bottom:.4rem}
+  .detail-delivery{margin-bottom:.35rem;padding:.3rem .45rem}
+  .detail-delivery strong,.detail-delivery span{display:inline}
+  .detail-delivery strong{margin-right:.35rem}
+  .detail-action{margin-top:.42rem}
+}
+@media(max-height:620px) and (max-width:540px){#details img.detail-photo,#details .missing-photo.detail-photo{height:22dvh}}
+@media(max-height:620px) and (max-width:540px){
+  #details img.detail-photo,#details .missing-photo.detail-photo{height:19dvh}
+  #details .detail-info{padding:.56rem .75rem}
+  #details .detail-description{margin:.2rem 0}
+}
