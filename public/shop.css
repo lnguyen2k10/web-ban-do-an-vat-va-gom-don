@@ -131,3 +131,6 @@ input,select,textarea{display:block;width:100%;background:#fff;color:var(--ink);
   #details .detail-info{padding:.56rem .75rem}
   #details .detail-description{margin:.2rem 0}
 }
+
+.quick-order{position:fixed;left:1rem;bottom:1rem;z-index:3;box-shadow:0 4px 16px #22331f40}
+.footer{padding-bottom:4.5rem}

@@ -169,6 +169,24 @@ function openCart(step=false){
   cart.scrollTop=0;
   $(step?'[name=name]':'.close',cart)?.focus();
 }
+function openQuickOrder(){
+  if(!data) return;
+  if(items().length&&items().every(canBuy)){openCart(true);return;}
+  if(items().length){openCart();return;}
+  const available=data.products.filter(canBuy);
+  $('#cart-title').textContent='Đặt nhanh';
+  $('#cart-body').innerHTML=available.length?`<form id="quick-pick" class="form">
+    <label>Chọn món<select name="product" required><option value="">Chọn món đang nhận đơn</option>${Object.keys(days).map(kind=>{
+      const group=available.filter(p=>p.kind===kind);
+      return group.length?`<optgroup label="${days[kind]}">${group.map(p=>`<option value="${p.id}">${esc(p.name)} · ${esc(p.unit)} · ${money(price(p))}</option>`).join('')}</optgroup>`:'';
+    }).join('')}</select></label>
+    <label>Số lượng<input name="qty" type="number" min="1" max="99" step="1" value="1" required></label>
+    <button type="submit" class="button olive">Tiếp tục đặt hàng</button>
+  </form>`:'<p>Hiện shop đã chốt đơn. Mời anh/chị xem lịch giao để chọn đợt tới.</p><a class="button outline" href="#delivery" id="quick-schedule">Xem lịch giao</a>';
+  if(!cart.open)cart.showModal();
+  cart.scrollTop=0;
+  ($('[name=product]',cart)||$('.close',cart)).focus();
+}
 function updateQuantity(id, value, redraw=true) {
   const p=items().find(item=>item.id===id);
   if(!p) return;
@@ -188,6 +206,7 @@ document.addEventListener('click',e=>{
     $('#'+b.dataset.kind+'-categories button[aria-pressed=true]')?.focus();
   }
   if(b.id==='cart-button') openCart();
+  if(b.id==='quick-order') openQuickOrder();
   if(b.id==='start-checkout') openCart(true);
   if(b.id==='edit-cart'){
     buyer=pairs($('#checkout'));
@@ -250,12 +269,24 @@ cart.addEventListener('change',e=>{
     $('[name=group]',cart).focus();
   }
 });
+cart.addEventListener('click',e=>{
+  if(e.target.closest('#quick-schedule')) cart.close();
+});
 cart.addEventListener('close',()=>{
   const form=$('#checkout');
   if(form) buyer=pairs(form);
 });
 cart.addEventListener('submit',async e=>{
   e.preventDefault();
+  if(e.target.id==='quick-pick'){
+    const {product,qty}=pairs(e.target);
+    const p=data.products.find(p=>p.id===product);
+    if(p&&canBuy(p)){
+      increment(p.id,Number(qty));
+      openCart(true);
+    }
+    return;
+  }
   const f=e.target,b=$('button[type=submit], form button',f), message=$('.error',f);
   b.disabled=true;message.textContent='';
   buyer=pairs(f);
