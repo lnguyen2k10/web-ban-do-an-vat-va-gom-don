@@ -91,3 +91,6 @@ input,select,textarea{display:block;width:100%;background:#fff;color:var(--ink);
 }
 @media(max-height:600px) and (max-width:540px){#details .detail-photo{height:21dvh}}
 @media(max-height:480px) and (orientation:landscape){#details .detail-photo{height:29dvh}}
+
+.missing-photo{display:grid;place-items:center;width:100%;aspect-ratio:1.45;background:var(--pale);color:var(--olive);font-size:.86rem}
+.missing-photo.detail-photo{aspect-ratio:auto}

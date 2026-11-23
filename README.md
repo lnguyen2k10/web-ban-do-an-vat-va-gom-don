@@ -46,3 +46,5 @@ Repo có cấu hình phục vụ trang tĩnh và Node API trên Vercel. Khai bá
 Bot Telegram tự gửi tóm tắt cho đơn web nếu có `TELEGRAM_BOT_TOKEN` và `TELEGRAM_CHAT_ID`. Nếu Telegram lỗi, đơn vẫn lưu và hiển thị trong quản trị. Link tra riêng tạo ngay lúc đặt. Khách dùng link này để xem trạng thái đơn. Trình duyệt cũng lưu các link gần đây trên cùng thiết bị. Quản trị xem lịch sử khách theo số điện thoại. Các cấu hình bí mật nằm trong `.env` hoặc trình quản lý biến môi trường của máy chủ.
 
 Ảnh và giá trong danh mục là dữ liệu minh họa. Các link Zalo, phí giao và địa chỉ tập kết có thể điền khi chốt thông tin thật.
+
+Trong **So sánh giá**, quản trị có thể lưu báo giá sỉ và lẻ kèm nguồn, ngày, trọng lượng và phí giao. Khoảng giá 30 ngày chỉ tính các dòng đánh dấu cùng loại. Công cụ tính giá mục tiêu theo giá nhập, chi phí mỗi phần và tỷ suất lãi.

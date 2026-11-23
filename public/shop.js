@@ -74,8 +74,13 @@ function increment(id,step){
   bag[id]=Math.max(0,Math.min(99,(Number(bag[id])||0)+step));
   save();
 }
+function photoMarkup(p,index,detail=false){
+  const url=p.images[index];
+  if(!url) return '<span class="missing-photo'+(detail?' detail-photo':'')+'">Chưa có ảnh</span>';
+  return '<img'+(detail?' class="detail-photo"':' loading="lazy"')+' src="'+esc(url)+'" alt="'+esc(p.name)+'">';
+}
 function product(p){
-  return '<article class="card"><button class="image-button" data-detail="'+p.id+'" aria-label="Xem '+esc(p.name)+'"><img loading="lazy" src="'+esc(p.images[0])+'" alt="'+esc(p.name)+'">'+(p.images.length>1?'<span class="photo-count">'+p.images.length+' ảnh</span>':'')+'</button><div class="card-content"><h3>'+esc(p.name)+'</h3><p>'+esc(p.unit)+' · '+esc(p.description)+'</p>'+saleLabel(p)+'<div class="price-line"><span class="price">'+money(price(p))+(p.promo==null?'':' <del>'+money(p.price)+'</del>')+'</span><button class="button '+(canBuy(p)?'olive':'outline')+'" data-add="'+p.id+'" '+(canBuy(p)?'':'disabled')+'> '+(canBuy(p)?'Thêm':'Đã chốt')+'</button></div></div></article>';
+  return '<article class="card"><button class="image-button" data-detail="'+p.id+'" aria-label="Xem '+esc(p.name)+'">'+photoMarkup(p,0)+(p.images.length>1?'<span class="photo-count">'+p.images.length+' ảnh</span>':'')+'</button><div class="card-content"><h3>'+esc(p.name)+'</h3><p>'+esc(p.unit)+' · '+esc(p.description)+'</p>'+saleLabel(p)+'<div class="price-line"><span class="price">'+money(price(p))+(p.promo==null?'':' <del>'+money(p.price)+'</del>')+'</span><button class="button '+(canBuy(p)?'olive':'outline')+'" data-add="'+p.id+'" '+(canBuy(p)?'':'disabled')+'> '+(canBuy(p)?'Thêm':'Đã chốt')+'</button></div></div></article>';
 }
 const selectedCategories={daily:'',weekly:''};
 function renderProducts(kind){
@@ -146,7 +151,7 @@ function renderDetail(){
   const p=detailProduct;
   const imageOptions=p.images.length>1?`<div class="detail-images" aria-label="Ảnh sản phẩm">${p.images.map((x,i)=>`<button type="button" class="outline" aria-label="Xem ảnh ${i+1}" aria-pressed="${i===imageIndex}" data-image="${i}"><img src="${esc(x)}" alt=""></button>`).join('')}</div>`:'';
   const paging=descriptionPages.length>1?`<div class="detail-paging"><button type="button" class="outline" data-desc="-1" ${descriptionIndex===0?'disabled':''}>Trước</button><span>Mô tả ${descriptionIndex+1}/${descriptionPages.length}</span><button type="button" class="outline" data-desc="1" ${descriptionIndex===descriptionPages.length-1?'disabled':''}>Tiếp</button></div>`:'';
-  $('#detail-body').innerHTML=`<div class="detail-media"><img class="detail-photo" src="${esc(p.images[imageIndex])}" alt="${esc(p.name)}">${imageOptions}</div>
+  $('#detail-body').innerHTML=`<div class="detail-media">${photoMarkup(p,imageIndex,true)}${imageOptions}</div>
     <div class="detail-info"><p class="muted">${esc(p.unit)} · ${deliveryText(p.kind)}</p><p class="detail-description">${esc(descriptionPages[descriptionIndex])}</p>${paging}
     ${saleLabel(p)}
     ${p.youtube?`<a class="video-link" href="${esc(p.youtube)}" target="_blank" rel="noopener noreferrer">Xem video trên YouTube</a>`:''}

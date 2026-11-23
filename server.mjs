@@ -101,7 +101,8 @@ function product(db,b,editing){
   check((!promoStart||validDate(promoStart))&&(!promoEnd||validDate(promoEnd)),'Ngày ưu đãi phải theo định dạng YYYY-MM-DD.');
   check(!promoStart||!promoEnd||promoStart<=promoEnd,'Ngày kết thúc phải từ ngày bắt đầu trở đi.');
   check(promo!==null||(!promoStart&&!promoEnd),'Nhập giá ưu đãi khi cài lịch ưu đãi.');
-  check(images.length>=1&&images.length<=5&&images.reduce((size,image)=>size+(typeof image==='string'?image.length:0),0)<=3250000&&images.every(v=>typeof v==='string'&&v.length<=900000&&photo(v)),'Cần 1–5 ảnh JPG, PNG, WebP hoặc link HTTPS. Tổng dung lượng ảnh lưu tối đa khoảng 2,4 MB.');
+  const knownWithoutPhotos=editing&&db.products.find(p=>p.id===editing)?.images.length===0;
+  check((images.length>=1||knownWithoutPhotos)&&images.length<=5&&images.reduce((size,image)=>size+(typeof image==='string'?image.length:0),0)<=3250000&&images.every(v=>typeof v==='string'&&v.length<=900000&&photo(v)),'Cần 1–5 ảnh JPG, PNG, WebP hoặc link HTTPS. Tổng dung lượng ảnh lưu tối đa khoảng 2,4 MB.');
   check(db.suppliers.some(s=>s.id===b.supplier),'Chọn nhà cung cấp.');
   return {id:editing||id(),sku,name,unit,kind:b.kind,category:clean(b.category,60)||categoryOf({sku}),price,cost,promo,promoStart,promoEnd,description:clean(b.description,1200),images,youtube:youtubeLink(b.youtube),supplier:b.supplier,active:b.active!==false};
 }
@@ -285,7 +286,7 @@ async function api(req,res,url){
       const {id,code,name,date,delivery,week,groupName,status,kind}=o;
       return {id,code,name,date,delivery,week,groupName,status,kind,...(user.role==='courier'?{phone:o.phone,address:o.address,due:total(o)-paid(o)}:{lines:o.lines.map(({name,unit,qty})=>({name,unit,qty}))})};
     });
-    return send(res,{user:safeUser(user),orders,...(user.role==='admin'?{products:db.products.map(p=>({...p,category:categoryOf(p),images:photoList(p)})),groups:db.groups,suppliers:db.suppliers,users:db.users.map(safeUser),customers:db.customers,settings:{zalo:db.settings?.zalo??process.env.ZALO_URL??''},purchases:db.purchases,expenses:db.expenses}:{}),schedule:calendar()});
+    return send(res,{user:safeUser(user),orders,...(user.role==='admin'?{products:db.products.map(p=>({...p,category:categoryOf(p),images:photoList(p)})),groups:db.groups,suppliers:db.suppliers,users:db.users.map(safeUser),customers:db.customers,marketQuotes:db.marketQuotes||[],settings:{zalo:db.settings?.zalo??process.env.ZALO_URL??''},purchases:db.purchases,expenses:db.expenses}:{}),schedule:calendar()});
   }
   if(p.startsWith('/api/manage/order/')&&m==='PATCH'){
     const b=await json(req);
@@ -345,6 +346,19 @@ async function api(req,res,url){
       check(!b.id||existing,'Không tìm thấy sản phẩm.',404);
       const value=product(db,b,existing?.id);
       if(existing) Object.assign(existing,value);else db.products.push(value);
+    }else if(p==='/api/manage/market-quote'){
+      const item=db.products.find(p=>p.id===b.product);
+      const source=clean(b.source,120), link=clean(b.link,600);
+      let sourceURL;
+      try { sourceURL=new URL(link); } catch { /* Supplier quotes can be recorded without a URL. */ }
+      check(item&&source&&validDate(b.date)&&b.date<=calendar().date,'Chọn món, nguồn và ngày ghi nhận hợp lệ.');
+      check(['retail','wholesale'].includes(b.kind)&&['exact','similar'].includes(b.match),'Chọn loại giá và độ tương đồng.');
+      check(!link||(sourceURL&&['https:','http:'].includes(sourceURL.protocol)&&!sourceURL.username&&!sourceURL.password),'Link nguồn phải là HTTP hoặc HTTPS.');
+      const grams=amount(b.grams,100000), price=amount(b.price);
+      check(grams>0&&price>0,'Khối lượng và giá phải lớn hơn 0.');
+      const quotes=db.marketQuotes??=[];
+      quotes.push({id:id(),product:item.id,source,link,date:b.date,kind:b.kind,match:b.match,grams,price,
+        shipping:b.shipping===''||b.shipping==null?null:amount(b.shipping),note:clean(b.note,300)});
     }else if(p==='/api/manage/settings'){
       const zalo=clean(b.zalo);
       check(!zalo||/^https:\/\/zalo\.me\//i.test(zalo),'Link liên hệ phải bắt đầu bằng https://zalo.me/.');

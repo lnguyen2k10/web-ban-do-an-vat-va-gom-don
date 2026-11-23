@@ -3,7 +3,7 @@ const categorySuggestions=['Đồ khô','Hải sản cấp đông','Đồ nguộ
 const photoSlots=[0,1,2,3,4];
 const statuses=['Chờ xác nhận','Đã xác nhận','Đang soạn','Đã soạn','Đang giao','Đã giao','Giao chưa thành công','Đã hủy'];
 const roles={admin:'Quản trị',staff:'Soạn hàng',courier:'Giao hàng'};
-const sections={orders:'Đơn hàng',customers:'Khách hàng',products:'Sản phẩm',groups:'Cụm giao',suppliers:'Nhà cung cấp',purchases:'Gom hàng',report:'Báo cáo',users:'Tài khoản'};
+const sections={orders:'Đơn hàng',customers:'Khách hàng',products:'Sản phẩm',groups:'Cụm giao',suppliers:'Nhà cung cấp',purchases:'Gom hàng',report:'Báo cáo',market:'So sánh giá',users:'Tài khoản'};
 const dialog=$('#editor'),view=$('#view'),status=$('#status');
 let data,tab='orders',renderID=0,filters={},purchaseWeek='',reportFilters={};
 const button=(text,action,value='',primary=false)=>'<button type="button" class="button '+(primary?'olive':'outline')+'" data-do="'+action+'" data-id="'+esc(value)+'">'+esc(text)+'</button>';
@@ -69,7 +69,7 @@ function manual(){
 }
 function products(){
   return '<div class="actions">'+button('Thêm sản phẩm','product','',true)+button('Nhập Excel','import')+'<a class="button outline" href="/api/manage/template">Tải Excel mẫu</a></div>'+
-    table(['Ảnh','Món','Nhóm','Giá thường / ưu đãi','Nhà cung cấp','Thao tác'],data.products.map(p=>['<img class="photo-preview" alt="" src="'+esc(p.images[0])+'">',esc(p.name)+'<br>'+esc(p.sku)+(p.active?'':' · Ẩn'),days[p.kind]+'<br><small>'+esc(p.category)+'</small>',money(p.price)+(p.promo==null?'':' / '+money(p.promo)+'<br><small>'+esc(p.promoStart?date(p.promoStart):'Có hiệu lực ngay')+(p.promoEnd?' – '+esc(date(p.promoEnd)):'')+'</small>'),esc(get('suppliers',p.supplier)?.name),button('Sửa','product',p.id)+' '+button('Nhân bản','copy',p.id)]));
+    table(['Ảnh','Món','Nhóm','Giá thường / ưu đãi','Nhà cung cấp','Thao tác'],data.products.map(p=>[p.images[0]?'<img class="photo-preview" alt="" src="'+esc(p.images[0])+'">':'Chưa có ảnh',esc(p.name)+'<br>'+esc(p.sku)+(p.active?'':' · Ẩn'),days[p.kind]+'<br><small>'+esc(p.category)+'</small>',money(p.price)+(p.promo==null?'':' / '+money(p.promo)+'<br><small>'+esc(p.promoStart?date(p.promoStart):'Có hiệu lực ngay')+(p.promoEnd?' – '+esc(date(p.promoEnd)):'')+'</small>'),esc(get('suppliers',p.supplier)?.name),button('Sửa','product',p.id)+' '+button('Nhân bản','copy',p.id)]));
 }
 function productEditor(p,copy){
   const value=p||{};
@@ -146,10 +146,50 @@ async function loadReport(){
   if(!slot?.isConnected)return;
   slot.innerHTML=table(['Nhóm','Doanh thu','Đã thu','Giá vốn','Chi phí','Lợi nhuận'],r.map(v=>[esc(v.key),...['revenue','received','cost','expenses','profit'].map(k=>money(v[k]))]));
 }
+let marketProduct='';
+function productGrams(p){
+  const match=p.unit.match(/(\d+(?:[.,]\d+)?)\s*(kg|g)\b/i);
+  return match?Number(match[1].replace(',','.'))*(match[2].toLowerCase()==='kg'?1000:1):0;
+}
+const quoteKinds={retail:'Giá lẻ',wholesale:'Giá sỉ'};
+function marketView(){
+  const p=get('products',marketProduct)||data.products[0];
+  if(!p) return '<p>Thêm sản phẩm trước khi ghi giá thị trường.</p>';
+  marketProduct=p.id;
+  const grams=productGrams(p);
+  const quotes=data.marketQuotes.filter(q=>q.product===p.id).slice().reverse().sort((a,b)=>b.date.localeCompare(a.date));
+  const since=new Date(Date.parse(data.schedule.date)-30*86400000).toISOString().slice(0,10);
+  const band=kind=>{
+    const values=quotes.filter(q=>q.kind===kind&&q.match==='exact'&&q.date>=since).map(q=>Math.round(q.price*grams/q.grams));
+    return grams&&values.length?money(Math.min(...values))+' – '+money(Math.max(...values))+' ('+values.length+' báo giá)':'Chưa đủ dữ liệu cùng loại và quy cách';
+  };
+  return '<form class="filters" data-form="market-filter">'+select('Sản phẩm','product',links(data.products),p.id)+submit('Xem so sánh')+'</form>'+
+    '<div class="stats"><span>Giá nhập '+money(p.cost)+'</span><span>Giá bán '+money(p.price)+'</span><span>Lãi gộp '+money(p.price-p.cost)+' / '+esc(p.unit)+'</span></div>'+
+    '<p>Giá công khai quy về '+esc(p.unit)+' trong 30 ngày gần đây, chưa gồm phí giao.</p>'+
+    '<p><strong>Giá lẻ</strong> '+band('retail')+'<br><strong>Giá sỉ</strong> '+band('wholesale')+'</p>'+
+    (grams?'<p class="muted">Giá hòa vốn trước phí khác là '+money(p.cost)+'. Cộng chi phí anh chịu cho mỗi phần để ra giá hòa vốn thực.</p>':'<p class="muted">Để quy đổi theo phần, thêm khối lượng bằng g hoặc kg vào quy cách món.</p>')+
+    '<form class="filters" id="market-calculator" data-cost="'+p.cost+'" data-price="'+p.price+'">'+
+    field('Chi phí anh chịu mỗi phần (₫)','expense','0','number',num+' required')+
+    field('Tỷ suất lãi mục tiêu (%)','margin','10','number','min="0" max="99" step="0.1" required')+
+    submit('Tính giá mục tiêu')+'<p class="notice" role="status" hidden></p></form>'+
+    button('Thêm giá tham chiếu','market-add',p.id,true)+
+    table(['Ngày','Nguồn / Loại','Giá niêm yết','Quy về phần','Phí giao tham chiếu','Ghi chú'],quotes.map(q=>[
+      date(q.date),esc(q.source)+(q.link?' · <a href="'+esc(q.link)+'" target="_blank" rel="noopener noreferrer">Mở nguồn</a>':'')+'<br>'+quoteKinds[q.kind]+' · '+(q.match==='exact'?'Cùng loại':'Gần giống'),
+      money(q.price)+' / '+q.grams+' g',grams?money(Math.round(q.price*grams/q.grams)):'—',q.shipping==null?'Chưa biết':money(q.shipping),esc(q.note)
+    ]));
+}
+function marketEditor(p){
+  edit('Thêm giá tham chiếu',form('<input type="hidden" name="product" value="'+p.id+'"><p>'+esc(p.name)+'</p><div class="fields">'+
+    select('Loại giá','kind',Object.entries(quoteKinds),'retail')+select('Độ tương đồng','match',[['similar','Gần giống'],['exact','Cùng loại, cùng phân hạng']],'similar')+
+    field('Người bán / nguồn','source','','text','required')+field('Ngày ghi nhận','date',data.schedule.date,'date','required')+
+    field('Giá niêm yết (₫)','price','','number',num+' required')+field('Khối lượng (g)','grams','','number','min="1" step="1" required')+
+    field('Phí giao (₫) · bỏ trống nếu chưa biết','shipping','','number',num)+'</div>'+
+    field('Link nguồn','link','','url')+field('Ghi chú về cỡ, cách chế biến hoặc điều kiện sỉ','note')+submit(),'market-quote'));
+}
 function page(){
   const current=++renderID;
   const views={
-    orders:orderList,products, purchases:purchaseForm,report:reports,
+    orders:orderList,products, purchases:purchaseForm,report:reports,market:marketView,
     customers:()=>table(['Khách','Số điện thoại','Địa chỉ mới nhất','Đơn đặt','Thao tác'],data.customers.map(c=>[esc(c.name),esc(c.phone),esc(c.address),data.orders.filter(o=>o.customer===c.id).length,button('Lịch sử','customer',c.id)])),
     groups:()=>button('Thêm cụm','group','',true)+' '+button('Zalo cửa hàng','settings')+table(['Tên / Mã','Phạm vi','Điểm tập kết','Phí giao','Thao tác'],data.groups.map(g=>[esc(g.name)+'<br>'+esc(g.id)+(g.active?'':' · Tạm đóng'),esc(g.area),esc(g.hub)||'Chưa cấu hình',g.fee==null?'Báo sau':money(g.fee),button('Sửa','group',g.id)+' '+button('QR & link','qr',g.id)])),
     suppliers:()=>button('Thêm nhà cung cấp','supplier','',true)+table(['Tên','Mã nhập Excel','Liên hệ','Địa chỉ','Thao tác'],data.suppliers.map(s=>[esc(s.name),'<code>'+esc(s.id)+'</code>',esc(s.phone),esc(s.address),button('Sửa','supplier',s.id)])),
@@ -192,6 +232,7 @@ document.addEventListener('click',async e=>{
   if(action==='clear-customer'){delete filters.customer;page();}
   if(action==='product'||action==='copy')productEditor(id?get('products',id):null,action==='copy');
   if(action==='import')importEditor();
+  if(action==='market-add')marketEditor(get('products',id));
   if(action==='settings')edit('Zalo cửa hàng',form(field('Link Zalo liên hệ chung','zalo',data.settings?.zalo,'url')+submit(),'settings'));
   if(action==='group')groupEditor(id?get('groups',id):undefined);
   if(action==='supplier')supplierEditor(id?get('suppliers',id):undefined);
@@ -234,11 +275,21 @@ async function fileURL(file) {
 }
 document.addEventListener('submit',async e=>{
   const f=e.target,action=f.dataset.form;
+  if(f.id==='market-calculator'){
+    e.preventDefault();
+    const v=pairs(f), computed=$('[role=status]',f);
+    const landed=Number(f.dataset.cost)+Number(v.expense), margin=Number(v.margin)/100;
+    const target=Math.ceil(landed/(1-margin)/1000)*1000;
+    computed.textContent='Hòa vốn '+money(landed)+' · Giá mục tiêu '+money(target)+' · Lãi ở giá bán hiện tại '+money(Number(f.dataset.price)-landed)+' mỗi phần.';
+    computed.hidden=false;
+    return;
+  }
   if(!action)return;
   e.preventDefault();message('');
   const b=e.submitter,error=$('.error',f),v=pairs(f);
   b.disabled=true;if(error)error.textContent='';
   try{
+    if(action==='market-filter'){marketProduct=v.product;page();return;}
     if(action==='filters'){filters={...v,customer:filters.customer};page();return;}
     if(action==='report'){reportFilters=v;await loadReport();return;}
     if(action==='preview'){purchaseWeek=v.week;await preview();return;}
