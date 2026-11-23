@@ -75,6 +75,20 @@ function existingPhoto(db, url) {
   check(p?.images[index]&&photoLink(p,index)===url,'Ảnh cũ đã thay đổi. Hãy mở lại sản phẩm.');
   return p.images[index];
 }
+function youtubeLink(value) {
+  const raw=clean(value,500);
+  if(!raw) return '';
+  let url;
+  try { url=new URL(raw); } catch { check(false,'Nhập link video YouTube hợp lệ.'); }
+  const host=url.hostname.toLowerCase();
+  let video;
+  if(host==='youtu.be') video=url.pathname.slice(1);
+  if(['youtube.com','www.youtube.com','m.youtube.com'].includes(host)){
+    video=url.pathname==='/watch'?url.searchParams.get('v'):url.pathname.match(/^\/(?:shorts|embed|live)\/([^/]+)\/?$/)?.[1];
+  }
+  check(url.protocol==='https:'&&!url.username&&!url.password&&/^[\w-]{11}$/.test(video||''),'Nhập link video YouTube hợp lệ.');
+  return 'https://www.youtube.com/watch?v='+video;
+}
 function product(db,b,editing){
   const name=clean(b.name,120), sku=clean(b.sku,40).toUpperCase(), unit=clean(b.unit,50);
   const images=Array.isArray(b.images)?b.images.filter(Boolean).map(image=>existingPhoto(db,image)):[];
@@ -83,22 +97,24 @@ function product(db,b,editing){
   check(name&&sku&&unit&&['daily','weekly'].includes(b.kind),'Điền mã, tên, quy cách và nhóm món.');
   check(!db.products.some(p=>p.sku===sku&&p.id!==editing),'Mã sản phẩm đã tồn tại.');
   check(price>0&&(promo===null||promo<price),'Giá ưu đãi phải thấp hơn giá bán.');
-  check(images.length>=1&&images.length<=3&&images.every(v=>typeof v==='string'&&v.length<=900000&&photo(v)),'Cần 1–3 ảnh JPG, PNG, WebP hoặc đường dẫn HTTPS.');
+  check(images.length>=1&&images.length<=5&&images.reduce((size,image)=>size+(typeof image==='string'?image.length:0),0)<=3250000&&images.every(v=>typeof v==='string'&&v.length<=900000&&photo(v)),'Cần 1–5 ảnh JPG, PNG, WebP hoặc link HTTPS. Tổng dung lượng ảnh lưu tối đa khoảng 2,4 MB.');
   check(db.suppliers.some(s=>s.id===b.supplier),'Chọn nhà cung cấp.');
-  return {id:editing||id(),sku,name,unit,kind:b.kind,price,cost,promo,description:clean(b.description,1200),images,supplier:b.supplier,active:b.active!==false};
+  return {id:editing||id(),sku,name,unit,kind:b.kind,price,cost,promo,description:clean(b.description,1200),images,youtube:youtubeLink(b.youtube),supplier:b.supplier,active:b.active!==false};
 }
-const excelKeys=['sku','name','unit','kind','price','promo','cost','supplier','description','image1','image2','image3'];
+const excelKeys=['sku','name','unit','kind','price','promo','cost','supplier','description','image1','image2','image3','image4','image5','youtube'];
 async function parseExcel(req){
   const book=new ExcelJS.Workbook();
   try{await book.xlsx.load(await body(req));}catch(e){if(e.status) throw e;check(false,'Không đọc được tệp XLSX.');}
   const sheet=book.worksheets[0];
   check(sheet&&sheet.rowCount<=501,'Cần một bảng tối đa 500 dòng sản phẩm.');
-  check(excelKeys.every((k,i)=>sheet.getRow(1).getCell(i+1).text.trim()===k),'Dùng đúng các cột trong tệp Excel mẫu.');
+  const headings=sheet.getRow(1);
+  check(excelKeys.slice(0,12).every((k,i)=>headings.getCell(i+1).text.trim()===k)&&
+    excelKeys.slice(12).every((k,i)=>['',k].includes(headings.getCell(i+13).text.trim())),'Dùng đúng các cột trong tệp Excel mẫu.');
   const rows=[];
   sheet.eachRow((r,i)=>{
     if(i===1) return;
     const data=Object.fromEntries(excelKeys.map((k,j)=>[k,r.getCell(j+1).text.trim()]));
-    if(Object.values(data).some(Boolean)) rows.push({i,...data,images:[data.image1,data.image2,data.image3].filter(Boolean)});
+    if(Object.values(data).some(Boolean)) rows.push({i,...data,images:[data.image1,data.image2,data.image3,data.image4,data.image5].filter(Boolean)});
   });
   check(rows.length>0,'Tệp chưa có sản phẩm.');
   return rows;

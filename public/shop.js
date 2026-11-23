@@ -19,7 +19,7 @@ function increment(id,step){
   save();
 }
 function product(p){
-  return '<article class="card"><button class="image-button" data-detail="'+p.id+'" aria-label="Xem '+esc(p.name)+'"><img loading="lazy" src="'+esc(p.images[0])+'" alt="'+esc(p.name)+'"></button><div class="card-content"><h3>'+esc(p.name)+'</h3><p>'+esc(p.unit)+' · '+esc(p.description)+'</p><div class="price-line"><span class="price">'+money(price(p))+(p.promo==null?'':' <del>'+money(p.price)+'</del>')+'</span><button class="button '+(canBuy(p)?'olive':'outline')+'" data-add="'+p.id+'" '+(canBuy(p)?'':'disabled')+'> '+(canBuy(p)?'Thêm':'Đã chốt')+'</button></div></div></article>';
+  return '<article class="card"><button class="image-button" data-detail="'+p.id+'" aria-label="Xem '+esc(p.name)+'"><img loading="lazy" src="'+esc(p.images[0])+'" alt="'+esc(p.name)+'">'+(p.images.length>1?'<span class="photo-count">'+p.images.length+' ảnh</span>':'')+'</button><div class="card-content"><h3>'+esc(p.name)+'</h3><p>'+esc(p.unit)+' · '+esc(p.description)+'</p><div class="price-line"><span class="price">'+money(price(p))+(p.promo==null?'':' <del>'+money(p.price)+'</del>')+'</span><button class="button '+(canBuy(p)?'olive':'outline')+'" data-add="'+p.id+'" '+(canBuy(p)?'':'disabled')+'> '+(canBuy(p)?'Thêm':'Đã chốt')+'</button></div></div></article>';
 }
 function render(){
   for(const kind of Object.keys(days)) $('#'+kind+'-grid').innerHTML=data.products.filter(p=>p.kind===kind).map(product).join('')||'<p>Chưa có món đang bán.</p>';
@@ -81,6 +81,7 @@ function renderDetail(){
   const paging=descriptionPages.length>1?`<div class="detail-paging"><button type="button" class="outline" data-desc="-1" ${descriptionIndex===0?'disabled':''}>Trước</button><span>Mô tả ${descriptionIndex+1}/${descriptionPages.length}</span><button type="button" class="outline" data-desc="1" ${descriptionIndex===descriptionPages.length-1?'disabled':''}>Tiếp</button></div>`:'';
   $('#detail-body').innerHTML=`<div class="detail-media"><img class="detail-photo" src="${esc(p.images[imageIndex])}" alt="${esc(p.name)}">${imageOptions}</div>
     <div class="detail-info"><p class="muted">${esc(p.unit)} · ${deliveryText(p.kind)}</p><p class="detail-description">${esc(descriptionPages[descriptionIndex])}</p>${paging}
+    ${p.youtube?`<a class="video-link" href="${esc(p.youtube)}" target="_blank" rel="noopener noreferrer">Xem video trên YouTube</a>`:''}
     <div class="price-line"><strong class="price">${money(price(p))} ${p.promo==null?'':'<del>'+money(p.price)+'</del>'}</strong><button class="button olive" data-add="${p.id}" ${canBuy(p)?'':'disabled'}>${canBuy(p)?'Thêm vào giỏ':'Đã chốt'}</button></div></div>`;
 }
 function openCart(step=false){

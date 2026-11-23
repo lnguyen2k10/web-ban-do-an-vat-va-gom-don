@@ -1,4 +1,5 @@
 import {$,api,esc,money,date,days,pairs} from './common.js';
+const photoSlots=[0,1,2,3,4];
 const statuses=['Chờ xác nhận','Đã xác nhận','Đang soạn','Đã soạn','Đang giao','Đã giao','Giao chưa thành công','Đã hủy'];
 const roles={admin:'Quản trị',staff:'Soạn hàng',courier:'Giao hàng'};
 const sections={orders:'Đơn hàng',customers:'Khách hàng',products:'Sản phẩm',groups:'Cụm giao',suppliers:'Nhà cung cấp',purchases:'Gom hàng',report:'Báo cáo',users:'Tài khoản'};
@@ -75,10 +76,11 @@ function productEditor(p,copy){
     field('Tên món','name',value.name,'text','required')+field('Mã SKU','sku',copy?'':value.sku,'text','required')+field('Quy cách','unit',value.unit,'text','required')+
     select('Nhóm món','kind',Object.entries(days),value.kind||'daily')+field('Giá bán','price',value.price,'number',num+' required')+field('Giá ưu đãi','promo',value.promo,'number',num)+field('Giá vốn','cost',value.cost,'number',num+' required')+
     select('Nhà cung cấp','supplier',links(data.suppliers),value.supplier||'mau')+'</div><label>Mô tả<textarea name="description" maxlength="1200">'+esc(value.description)+'</textarea></label>'+
-    '<p class="muted">Chọn tối đa 3 ảnh JPG, PNG hoặc WebP. Ảnh lớn sẽ được thu nhỏ tự động.</p>'+
-    [0,1,2].map(i=>'<div class="fields">'+field('Ảnh '+(i+1)+' · URL HTTPS','image'+i,value.images?.[i]?.startsWith('/api/photo?')?'':value.images?.[i],'text')+
+    '<p class="muted">Thêm tối đa 5 ảnh JPG, PNG hoặc WebP. Ảnh đầu tiên làm ảnh đại diện. Ảnh lớn được thu nhỏ tự động.</p>'+
+    photoSlots.map(i=>'<div class="fields">'+field('Ảnh '+(i+1)+' · URL HTTPS','image'+i,value.images?.[i]?.startsWith('/api/photo?')?'':value.images?.[i],'text')+
       '<label>Hoặc chọn ảnh '+(i+1)+'<input name="file'+i+'" type="file" accept="image/jpeg,image/png,image/webp"></label>'+
       (value.images?.[i]?.startsWith('/api/photo?')?'<img class="photo-preview" src="'+esc(value.images[i])+'" alt="Ảnh '+(i+1)+' hiện tại">'+checkbox('Giữ ảnh đã tải lên','keep'+i,true):'')+'</div>').join('')+
+    field('Link video YouTube (không bắt buộc)','youtube',value.youtube,'url','placeholder="https://www.youtube.com/watch?v=…"')+
     checkbox('Hiện trong cửa hàng','active',value.active!==false)+submit(),'product'));
   dialog.currentProduct=value;
 }
@@ -244,9 +246,14 @@ document.addEventListener('submit',async e=>{
       await api('/api/manage/order/'+id,payload,'PATCH');
       await refresh();const order=get('orders',id);if(order) orderEditor(order);else dialog.close();message('Đã lưu.',false);return;
     }else if(action==='product'){
-      v.images=(await Promise.all([0,1,2].map(i=>v['file'+i].size?fileURL(v['file'+i]):v['image'+i]||(v['keep'+i]?dialog.currentProduct.images[i]:'')))).filter(Boolean);
+      v.images=[];
+      for(const i of photoSlots){
+        const file=v['file'+i];
+        const image=file.size?await fileURL(file):v['image'+i]||(v['keep'+i]?dialog.currentProduct.images[i]:'');
+        if(image) v.images.push(image);
+      }
       v.active=Boolean(v.active);
-      for(let i=0;i<3;i++){delete v['file'+i];delete v['keep'+i];delete v['image'+i];}
+      for(const i of photoSlots){delete v['file'+i];delete v['keep'+i];delete v['image'+i];}
       await api('/api/manage/product',v);
     }else if(action==='group'){v.active=Boolean(v.active);await api('/api/manage/group',v);}
     else if(action==='purchase'){await api('/api/manage/purchase',{...v,week:purchaseWeek});}
