@@ -220,7 +220,8 @@ async function api(req,res,url){
     limit('track:'+rates(req),180);
     const o=db.orders.find(o=>o.token===q.get('token'));
     check(o,'Không tìm thấy đơn.',404);
-    return send(res,publicOrder(o));
+    const buyer={name:o.name,phone:'••••••'+o.phone.slice(-4)};
+    return send(res,{...publicOrder(o),buyer});
   }
   if(m==='POST'&&p==='/api/login'){
     limit('login:'+rates(req),15);

@@ -33,7 +33,7 @@ function orderList(){
     (admin()?select('Cụm giao','group',[['','Tất cả'],...links(data.groups)],filters.group||''):'')+submit('Lọc')+
     (filters.customer?button('Bỏ lọc khách','clear-customer'):'')+'</form>'+
     table(['Mã đơn','Khách','Cụm','Ngày đặt','Ngày giao','Trạng thái',admin()?'Còn phải thu':'Thao tác',...(admin()?['Thao tác']:[])],orders.map(o=>[
-      esc(o.code)+'<br><span class="muted">'+days[o.kind]+'</span>',esc(o.name),esc(o.groupName),date(o.date),date(o.delivery),
+      esc(o.code)+'<br><span class="muted">'+days[o.kind]+'</span>',esc(o.name)+(o.phone?'<br><a class="muted" href="tel:'+esc(o.phone)+'">'+esc(o.phone)+'</a>':''),esc(o.groupName),date(o.date),date(o.delivery),
       '<span class="pill">'+esc(o.status)+'</span>',...(admin()?[money(total(o)-paid(o))+(o.fee===null?'<br><span class="muted">Chưa chốt phí</span>':'')]:[]),button('Mở đơn','order',o.id)
     ]));
 }

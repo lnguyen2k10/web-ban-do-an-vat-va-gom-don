@@ -1,6 +1,6 @@
 import {$,api,esc,money,date,days,savedOrders} from './common.js';
 function card(o){
-  return '<article class="panel"><span class="pill">'+esc(o.status)+'</span><h3>'+esc(o.code)+' · '+days[o.kind]+'</h3><p>Ngày giao: '+(o.delivery?date(o.delivery):o.week?'Cuối tuần từ '+date(o.week):'Chưa xếp lịch')+'</p><ul class="plain-list">'+o.lines.map(l=>'<li>'+esc(l.name)+' · '+l.qty+' × '+money(l.price)+'</li>').join('')+'</ul><p><strong>'+money(o.total)+'</strong>'+(o.fee==null?' · Phí giao sẽ xác nhận':'')+'</p><p>Đã thu '+money(o.paid)+' · Còn lại '+money(o.total-o.paid)+'</p>'+(o.deposit?'<p>Mức cọc '+money(o.deposit)+'</p>':'')+'</article>';
+  return '<article class="panel"><span class="pill">'+esc(o.status)+'</span><h3>'+esc(o.code)+' · '+days[o.kind]+'</h3>'+(o.buyer?'<p>Người đặt: '+esc(o.buyer.name)+' · '+esc(o.buyer.phone)+'</p>':'')+'<p>Ngày giao: '+(o.delivery?date(o.delivery):o.week?'Cuối tuần từ '+date(o.week):'Chưa xếp lịch')+'</p><ul class="plain-list">'+o.lines.map(l=>'<li>'+esc(l.name)+' · '+l.qty+' × '+money(l.price)+'</li>').join('')+'</ul><p><strong>'+money(o.total)+'</strong>'+(o.fee==null?' · Phí giao sẽ xác nhận':'')+'</p><p>Đã thu '+money(o.paid)+' · Còn lại '+money(o.total-o.paid)+'</p>'+(o.deposit?'<p>Mức cọc '+money(o.deposit)+'</p>':'')+'</article>';
 }
 async function showOrder(){
   const token=location.hash.slice(1), target=$('#order');
